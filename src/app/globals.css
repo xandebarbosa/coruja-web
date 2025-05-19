@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+html {
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* styles/globals.css */
+#__next-route-announcer,
+[data-nextjs-dev-overlay] {
+  display: none !important;
+}
