@@ -132,6 +132,7 @@ export default function PesquisaLocalPage() {
             horaFinal: formatTime(horaFinal),
           };
         console.log("📊 Filtros usados:", filtros);
+        
 
     const response = await buscarPorLocal(filtros, pagina, tamanhoPagina); // page=0, size=100
 
