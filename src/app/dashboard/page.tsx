@@ -1,120 +1,169 @@
-import React from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from 'recharts';
-import { Card, CardContent } from '@mui/material';
-import { Button } from '@mui/material';
-import { Badge } from '@mui/material';
-import { Settings, BarChart3, Home, Users, CheckCircle } from 'lucide-react';
+'use client';
 
-const sessionsData = [
-  { name: 'Apr 1', sessions: 1200 },
-  { name: 'Apr 5', sessions: 3000 },
-  { name: 'Apr 10', sessions: 5000 },
-  { name: 'Apr 15', sessions: 7000 },
-  { name: 'Apr 20', sessions: 10000 },
-  { name: 'Apr 25', sessions: 13000 },
-  { name: 'Apr 30', sessions: 15000 },
-];
+import React, { useEffect, useState } from 'react';
+import { Client } from '@stomp/stompjs';
+import { Box, Card, CardContent, Chip, CircularProgress, Grid, Paper, Typography } from '@mui/material';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import BusinessIcon from '@mui/icons-material/Business';
+import SignpostIcon from '@mui/icons-material/Signpost';
+import PlacaMercosul from '../components/PlacaMercosul';
+import { getLatestRadars } from '../services/api';
+import SockJS from 'sockjs-client';
 
-const pageViewsData = [
-  { month: 'Jan', views: 8000 },
-  { month: 'Feb', views: 9500 },
-  { month: 'Mar', views: 8700 },
-  { month: 'Apr', views: 10800 },
-  { month: 'May', views: 12000 },
-  { month: 'Jun', views: 9300 },
-  { month: 'Jul', views: 8800 },
-];
+
+// Crie uma interface para o objeto de radar que virá do WebSocket
+interface RadarEvent {
+  concessionaria: string;
+  data: string;
+  hora: string;
+  placa: string;
+  rodovia: string;
+  praca: string;
+  sentido: string;
+  km: string;
+}
 
 export default function Dashboard() {
+
+  // MUDANÇA: O estado agora é um objeto que usa o nome da concessionária como chave
+  const [lastRadars, setLastRadars] = useState<Record<string, RadarEvent>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  // NOVO: useEffect para a carga inicial dos dados
+  useEffect(() => {
+    async function fetchInitialData() {
+      try {
+        const latestRadars: RadarEvent[] = await getLatestRadars();
+        const initialRadarsState = latestRadars.reduce((acc, radar) => {
+          acc[radar.concessionaria.toUpperCase()] = radar;
+          return acc;
+        }, {} as Record<string, RadarEvent>);
+        setLastRadars(initialRadarsState);
+      } catch (error) {
+        console.error("Erro na carga inicial:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchInitialData();
+  }, []);
+
+  useEffect(() => {
+    // Cria um cliente STOMP sobre uma conexão SockJS
+    const client = new Client({
+      webSocketFactory: () => new SockJS('http://localhost:8080/ws'), // URL do endpoint WebSocket no BFF
+      debug: (str) => {
+        console.log(new Date(), str);
+      },
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+    });
+
+    client.onConnect = (frame) => {
+      client.subscribe('/topic/last-radar', (message) => {
+        if (message.body) {
+          const newRadarEvent: RadarEvent = JSON.parse(message.body);
+          
+          // MUDANÇA: Atualiza apenas a concessionária que enviou o dado
+          setLastRadars(currentRadars => ({
+            ...currentRadars,
+            [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
+          }));
+        }
+      });
+    };
+
+    client.activate();
+    return () => { client.deactivate(); };
+  },[]);  
+
+  // Função auxiliar para formatar a data/hora
+  const formatDateTime = (data: string, hora: string) => {
+    try {
+      return new Date(`${data}T${hora}`).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch (e) {
+      return 'Data/Hora inválida';
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-64 bg-white shadow-sm">
-        <div className="p-4 font-bold text-lg">Sitemark-web</div>
-        <nav className="flex flex-col gap-2 p-4 text-sm text-gray-700">
-          <div className="flex items-center gap-2"><Home size={16} /> Home</div>
-          <div className="flex items-center gap-2"><BarChart3 size={16} /> Analytics</div>
-          <div className="flex items-center gap-2"><Users size={16} /> Clients</div>
-          <div className="flex items-center gap-2"><CheckCircle size={16} /> Tasks</div>
-        </nav>
-      </aside>
-      <main className="flex-1 p-6 space-y-6">
-        <div className="text-2xl font-semibold">Overview</div>
+    <div className='p-4'>
+      <Card className='mb-4'>
+        <CardContent>
+          <Typography variant="h4" className="text-3xl font-roboto font-black text-gray-800">Dashboard</Typography>
+        </CardContent>
+      </Card>
+      
+      {isLoading ? (
+        <Box className="flex justify-center p-8"><CircularProgress color="warning" /></Box>
+      ) : (
+        <Grid container spacing={4}>
+          {/* Mapeia os valores do objeto de radares e ordena por nome da concessionária */}
+          {Object.values(lastRadars)
+            .sort((a, b) => a.concessionaria.localeCompare(b.concessionaria))
+            .map((radar) => (
+            <Grid size={{ xs: 12, md: 6 }} key={radar.concessionaria}>
+              <Paper elevation={3} className="p-6 rounded-lg h-full flex flex-col">
+                <Typography variant="h6" component="h2" className="font-semibold text-gray-700 mb-4 flex items-center">
+                  <BusinessIcon className="text-orange-500 mr-2" />
+                  Último Radar - 
+                  <Chip label={radar.concessionaria.toUpperCase()} color="primary" size="small" className="bg-orange-600 font-semibold ml-2" />
+                </Typography>
+                
+                <Grid container spacing={3} className="flex-grow">              
 
-        <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-gray-500">Users</div>
-              <div className="text-xl font-bold">14k <Badge className="ml-2" color="success">+25%</Badge></div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-gray-500">Conversions</div>
-              <div className="text-xl font-bold">325 <Badge className="ml-2" color="error">-25%</Badge></div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-gray-500">Event Count</div>
-              <div className="text-xl font-bold">200k <Badge className="ml-2" color="secondary">+5%</Badge></div>
-            </CardContent>
-          </Card>
-        </div>
+                  <Grid size={{ xs: 12, md: 6 }} className="flex items-center">
+                    <Box>
+                      <Typography variant="body2" className="text-gray-500">
+                          <DirectionsCarIcon className="text-gray-600 mr-1 mb-1"/>
+                          Placa
+                      </Typography>                                           
+                      <PlacaMercosul placa={radar.placa} />
+                    </Box>
+                  </Grid>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="font-semibold mb-2">Sessions</div>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={sessionsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="sessions" stroke="#8884d8" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                  <Grid size={{ xs: 12, md: 6 }} className="flex flex-col justify-center space-y-4">
+                    <Box>
+                      <CalendarTodayIcon className="text-gray-600" />
+                      <div>
+                        <Typography variant="body2" className="text-gray-500">Data e Hora</Typography>
+                        <Typography variant="subtitle1" component="p" className="font-mono">
+                          {formatDateTime(radar.data, radar.hora)}
+                        </Typography>
+                      </div>
+                      
+                    </Box>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="font-semibold mb-2">Page Views and Downloads</div>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={pageViewsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="views" fill="#3182ce" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+                    <Box>
+                      <SignpostIcon className="text-gray-600" />
+                      <Typography variant="body2" className="text-gray-500">Localização</Typography>
+                      <Typography variant="subtitle1" component="p">
+                        {radar.rodovia} {radar.km !== 'N/A' && `KM ${radar.km}`}
+                      </Typography>
+                      <Typography variant="caption" className="text-gray-600">
+                        {radar.praca} ({radar.sentido})
+                      </Typography>
+                    </Box>
+                  </Grid>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="font-semibold">Plan about to expire</div>
-                <div className="text-sm text-gray-600">Enjoy 10% off when renewing your plan today.</div>
-              </div>
-              <Button color="secondary">Get the discount</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+                </Grid>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      )}
     </div>
-  );
+
+  );  
 }

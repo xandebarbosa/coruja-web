@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import type { RadarDTO } from '../types/types';
 
-const API_BASE = "http://localhost:8000/radares";  //"http://localhost:8086/radares"
+const API_BASE = "http://localhost:8080/radares";  //"http://localhost:8086/radares" - "http://localhost:8000/radares"
 
 interface FiltrosRadar {
   rodovia?: string;

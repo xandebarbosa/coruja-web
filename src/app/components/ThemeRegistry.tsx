@@ -9,7 +9,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     const saved = localStorage.getItem('theme');
-    setIsDark(saved === 'dark');
+    setIsDark(saved === 'light');
   }, []);
 
   const theme = createTheme({

@@ -7,7 +7,12 @@ module.exports = {
       './app/**/*.{js,ts,jsx,tsx}' // caso esteja usando a pasta /app (Next 13+)
     ],
     theme: {
-      extend: {},
+      extend: {
+        fontFamily: {
+         poppins: ['var(--font-poppins)'],
+         roboto: ['Roboto', 'sans-serif'], 
+        }
+      },
     },
     plugins: [],
   }
