@@ -11,7 +11,8 @@ import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import PersonIcon from '@mui/icons-material/Person';
-import { getAlertHistory, getMonitoredPlates, MonitoredPlate } from '../services/api'; // Ajuste a importação se necessário
+import { getAlertHistory, getMonitoredPlates } from '../services/api'; // Ajuste a importação se necessário
+import { MonitoredPlate } from '../types/types';
 import CustomPagination from '../components/CustomPagination';
 import { Box, Paper, Typography, Chip, keyframes, Grid, Divider, Card, CardContent, IconButton, Menu, List, ListItem, Slider, MenuItem } from '@mui/material';
 import { Client } from '@stomp/stompjs';

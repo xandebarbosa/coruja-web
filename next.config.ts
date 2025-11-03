@@ -1,11 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+
+  // CORRIGINDO O AVISO DE "images.domains"
+  images: {
+    // Substitua 'images.domains' por 'remotePatterns'
+    remotePatterns: [
+      {
+        protocol: 'https', // ou 'http'
+        hostname: 'dominio-das-suas-imagens.com', // ex: s3.amazonaws.com
+      },
+    ],
+  },
+
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*', // Proxy para o backend
+        source: '/api/:path*((?!auth).*)',
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`, // Proxy para o backend
       },
     ];
   },
@@ -33,22 +45,9 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  
-  // Configuração para tratar corretamente o ambiente local
-  env: {
-    NEXT_PUBLIC_API_BASE_URL: process.env.NODE_ENV === 'development' 
-      ? '/api' 
-      : 'https://seu-servidor-producao.com/api',
-  },
-  
-  // Configurações adicionais recomendadas para Next.js 15+
+
   experimental: {
     // Adicione aqui quaisquer recursos experimentais que deseja usar
-  },
-  
-  // Otimizações de imagens (se aplicável)
-  images: {
-    domains: ['localhost'], // Adicione os domínios das suas imagens
   },
 };
 

@@ -6,6 +6,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
+import AuthProvider from "./components/AuthProvider";
 
 const poppins = Poppins({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -47,9 +48,11 @@ export default function RootLayout({
           pauseOnHover
           theme="light"
         />
-        <ThemeRegistry>
-          <AppLayout>{children}</AppLayout>
-        </ThemeRegistry>
+        <AuthProvider>
+          <ThemeRegistry>
+            <AppLayout>{children}</AppLayout>
+          </ThemeRegistry>
+        </AuthProvider>
       </body>
     </html>
   );
