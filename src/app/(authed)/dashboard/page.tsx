@@ -7,8 +7,8 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessIcon from '@mui/icons-material/Business';
 import SignpostIcon from '@mui/icons-material/Signpost';
-import PlacaMercosul from '../components/PlacaMercosul';
-import { getLatestRadars } from '../services/api';
+import PlacaMercosul from '../../components/PlacaMercosul';
+import { getLatestRadars } from '../../services/api';
 import SockJS from 'sockjs-client';
 
 

@@ -1,10 +1,10 @@
 import axios from "axios";
-import { getSession } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
 import { LocalSearchParams, MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates } from "../types/types"; // Supondo que você moveu suas interfaces para cá
 
 // 1. A URL BASE CORRETA
 // Aponta para o seu API Gateway na porta 8081 e já inclui o prefixo /api
-const API_GATEWAY_URL = "http://localhost:8081/api";
+const API_GATEWAY_URL = "/api";
 
 // 2. CRIA A INSTÂNCIA CENTRALIZADA DO AXIOS
 const api = axios.create({
@@ -27,14 +27,27 @@ api.interceptors.request.use(
   }
 );
 
+// Flag para evitar loops de logout
+let isSigningOut = false;
+
 // 4. INTERCEPTOR DE RESPOSTA (LIDA COM TOKEN EXPIRADO)
 api.interceptors.response.use(
   (response) => response, // Sucesso: apenas repassa a resposta
   (error) => {
     // Se o erro for 401 (Não Autorizado), o token expirou ou é inválido
     if (error.response && error.response.status === 401) {
-      // Redireciona para a página de logout do next-auth para limpar a sessão
-      window.location.href = "/api/auth/signout";
+      
+      // MUDANÇA AQUI:
+      // Evita que 10 chamadas de API falhem e tentem fazer logout 10 vezes
+      if (!isSigningOut) {
+        isSigningOut = true;
+        console.error("Erro 401 detectado. Token inválido ou expirado. Deslogando...");
+        
+        // Em vez de redirecionar para a página de signout,
+        // usamos a função signOut() que limpa a sessão e 
+        // nos redireciona para a página de login (definida no callbackUrl).
+        signOut({ callbackUrl: '/' });
+      }
     }
     return Promise.reject(error);
   }

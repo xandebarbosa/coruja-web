@@ -1,7 +1,7 @@
 'use client';
 // Este componente usa hooks do Next.js, então precisa ser um Client Component
 
-import { Home, BarChart, People, Assignment, ListAlt, Close, Settings, Info, HelpOutline, MoreVert, Menu as Menus, Search, ImageSearch, Delete, AddCircleOutline, ImportantDevices, AssistantOutlined } from '@mui/icons-material';
+import { Home, BarChart, People, Assignment, ListAlt, Close, Settings, Info, HelpOutline, MoreVert, Menu as Menus, Search, ImageSearch, Delete, AddCircleOutline, ImportantDevices, AssistantOutlined, Logout } from '@mui/icons-material';
 import { Avatar, Divider, IconButton, Menu, MenuItem, Typography } from '@mui/material';
 import { lightBlue } from '@mui/material/colors';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { usePathname } from 'next/navigation'
 import path from 'path';
 import iaIcon from '../../../public/icon/inteligencia-artificial.png'
 import Image from 'next/image';
+import { signOut } from 'next-auth/react';
 
 // Definição dos itens do menu para fácil manutenção
 const navItems = [
@@ -34,6 +35,9 @@ export default function Sidebar() {
   const openMenu = Boolean(anchorEl);
   const pathname = usePathname(); // Hook para saber a rota atual
 
+  const handleLogout = () => {
+    signOut({ callbackUrl: '/' });
+  }
   return (
     <>
       {/* Botão de menu visível somente em telas menores que 'md' */}
@@ -91,6 +95,22 @@ export default function Sidebar() {
                   </Link>                  
                 </li>
               ))}
+            </ul>
+
+            <ul className="space-y-2 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <li>
+                <button
+                  onClick={handleLogout}
+                  className={`
+                    flex items-center p-3 my-1 rounded-lg text-[#ffbd00] transition-colors gap-1.5 text-lg font-medium
+                    w-full text-left
+                    hover:bg-orange-100 dark:hover:bg-gray-800
+                  `}
+                >
+                  <Logout />
+                  Sair
+                </button>
+              </li>
             </ul>
             </nav>
 

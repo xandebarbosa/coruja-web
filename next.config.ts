@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/:path*((?!auth).*)',
+        source: '/api/:path((?!auth/.*).*)',
         destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`, // Proxy para o backend
       },
     ];

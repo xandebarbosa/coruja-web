@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-import { getFilterOptions, LocalSearchParams, searchByLocal, getKmsByRodovia, searchAllByLocalForExport } from '../services/api';
-import CustomPagination from '../components/CustomPagination';
+import { getFilterOptions, searchByLocal, getKmsByRodovia, searchAllByLocalForExport } from '../../services/api';
+import { LocalSearchParams } from '../../types/types';
+import CustomPagination from '../../components/CustomPagination';
 import { Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
-import { exportToExcel } from '../components/ExportExcel';
+import { exportToExcel } from '../../components/ExportExcel';
 import { toast } from 'react-toastify';
 //import { ExportExcel } from '../components/ExportExcel';
 
@@ -223,19 +224,19 @@ export default function ConsultaLocal() {
             }
             
             // 2. Cria um mapa para contar as ocorrências de cada placa
-            const plateCounts = new Map<string, number>();
-            allData.forEach((row: { placa: string; }) => {
-                plateCounts.set(row.placa, (plateCounts.get(row.placa) || 0) + 1);
-            });
+            // const plateCounts = new Map<string, number>();
+            // allData.forEach((row: { placa: string; }) => {
+            //     plateCounts.set(row.placa, (plateCounts.get(row.placa) || 0) + 1);
+            // });
 
             // 3. Adiciona a nova coluna de contagem a cada linha de dado
-            const dataWithCounts = allData.map((row: { placa: string; }) => ({
-              ...row,
-              'Contagem': plateCounts.get(row.placa) // Adiciona a nova coluna 'Contagem'
-            }));
+            // const dataWithCounts = allData.map((row: { placa: string; }) => ({
+            //   ...row,
+            //   'Contagem': plateCounts.get(row.placa) // Adiciona a nova coluna 'Contagem'
+            // }));
         
             // 4. Passa os dados processados e um nome de arquivo para a função de exportação
-            exportToExcel(dataWithCounts, "Relatorio_Radares");
+            exportToExcel(allData, "Relatorio_Radares");
                 // Passa os dados recebidos para a sua função de exportação
                 //exportToExcel(allData);
 

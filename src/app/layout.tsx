@@ -50,7 +50,7 @@ export default function RootLayout({
         />
         <AuthProvider>
           <ThemeRegistry>
-            <AppLayout>{children}</AppLayout>
+            {children}
           </ThemeRegistry>
         </AuthProvider>
       </body>
@@ -58,13 +58,3 @@ export default function RootLayout({
   );
 }
 
-function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col md:flex-row">
-      <Sidebar />
-      <main className="flex-1 min-h-screen bg-slate-500">        
-        {children}
-      </main>
-    </div>
-  );
-}

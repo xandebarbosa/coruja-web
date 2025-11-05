@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-import { searchByPlaca } from '../services/api';
-import CustomPagination from '../components/CustomPagination';
+import { searchByPlaca } from '../../services/api';
+import CustomPagination from '../../components/CustomPagination';
 import { Button, Card, CardContent, TextField, Typography } from '@mui/material';
 
 interface RadarPlaca {
@@ -158,25 +158,3 @@ export default function ConsultaPlaca() {
     </div>
   );
 }
-
-// 'use client';
-
-// import { useState } from "react";
-// import { buscarPorPlaca } from "../services/RadarService";
-// import DetailsTable from "../components/DetailsTable";
-// import { Card, CardContent, Typography, TextField, Button } from "@mui/material";
-// import QueriesCard from "../components/QueriesCard";
-// import Head from "next/head";
-// import Sidebar from "../components/Sidebar";
-// import Header from "../components/Header";
-
-// const PesquisaPlacaPage = () => {
-//     return (
-//         <>        
-//           <Header title="Pequisa por placa" />
-//           <QueriesCard />
-//         </>
-//       );
-// }
- 
-// export default PesquisaPlacaPage;
