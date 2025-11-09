@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation'
 import path from 'path';
 import iaIcon from '../../../public/icon/inteligencia-artificial.png'
 import Image from 'next/image';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 
 // Definição dos itens do menu para fácil manutenção
 const navItems = [
@@ -21,6 +21,11 @@ const navItems = [
   { name: 'Monitoramento', icon: <ImportantDevices />, path: '/monitoring-page' },
   { name: "Análise com IA", icon: <Image src={iaIcon} alt='IA' width={24} height={24} style={{ backgroundColor: '#ffbd00'}}/> ,path: "/analise-ia"}
   //{ name: 'Logs do Sistema', path: '/logs' }, 
+];
+
+const adminNavItems = [
+  { name: 'Auditoria', icon: <ListAlt />, path: '/auditoria' },
+  //{ name: 'Usuários', icon: <People />, path: '/users' },    
 ];
 
 const bottomItems = [
@@ -34,10 +39,15 @@ export default function Sidebar() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const openMenu = Boolean(anchorEl);
   const pathname = usePathname(); // Hook para saber a rota atual
+  const { data: session } = useSession();
+
+  // Verfica se o usuário é admin
+  const isAdmin = session?.user?.roles?.includes('admin');
 
   const handleLogout = () => {
     signOut({ callbackUrl: '/' });
   }
+
   return (
     <>
       {/* Botão de menu visível somente em telas menores que 'md' */}
@@ -95,6 +105,33 @@ export default function Sidebar() {
                   </Link>                  
                 </li>
               ))}
+
+              {/* 5. RENDERIZAÇÃO CONDICIONAL: Mostra os links de admin se o usuário for admin */}
+              {isAdmin && (
+                <>
+                  <Divider sx={{ my: 2, borderColor: 'rgba(255, 255, 255, 0.2)' }} />
+                  <Typography variant="caption" sx={{ paddingLeft: '1rem', color: '#ffbd00', opacity: 0.7 }}>
+                    Administração
+                  </Typography>
+                  {adminNavItems.map(item => (
+                    <li key={item.name}>
+                      <Link
+                        href={item.path}
+                        className={`
+                          flex items-center p-3 my-1 rounded-lg text-[#ffbd00] transition-colors gap-1.5 text-lg  font-medium
+                          ${pathname === item.path
+                            ? 'bg-orange-500 text-white font-semibold'
+                            : 'hover:bg-orange-100' 
+                          }
+                        `}
+                      >
+                        {item.icon}
+                        {item.name}
+                      </Link>                  
+                    </li>
+                  ))}
+                </>
+              )}
             </ul>
 
             <ul className="space-y-2 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">

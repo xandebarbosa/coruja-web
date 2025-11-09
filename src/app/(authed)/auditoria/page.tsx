@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { searchLogs } from  "../../services/api"; // Usamos a mesma API de logs
 import { Box, Button, Card, CardContent, Chip, CircularProgress, Paper, TextField, Typography } from "@mui/material";
-import { Person, Label, HistoryToggleOff } from '@mui/icons-material';
+import { Person, Label, HistoryToggleOff, Lock } from '@mui/icons-material';
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 // Interface expandida para incluir os campos de auditoria
 // Seu backend Java deve enviar os logs para o Elasticsearch com esta estrutura
@@ -20,6 +22,11 @@ interface AuditLogEntry {
 }
 
 export default function AuditoriaPage() {
+
+    // --- Autenticação e Autorização ---
+    const { data: session, status } = useSession(); // Obter a sessão
+    const router = useRouter();
+    const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null); // Novo estado para autorização
 
     const [logs, setLogs] = useState<AuditLogEntry[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,10 +50,27 @@ export default function AuditoriaPage() {
         }
     };
     
-    // Busca os logs de auditoria na primeira vez que a página carrega
+    // 6. Efeito para verificar a autorização
     useEffect(() => {
-        handleSearch();
-    }, []);
+        // Roda apenas quando a sessão for carregada
+        if (status === "authenticated") {
+            // Verifica se o array de papéis do usuário inclui 'admin'
+            const isAdmin = session?.user?.roles?.includes('admin') ?? false;
+            setIsAuthorized(isAdmin); // Define o estado de autorização
+
+            if (isAdmin) {
+                // Se for admin, busca os dados
+                handleSearch();
+            } else {
+                // Se não for admin, não precisa buscar dados e para de carregar
+                setLoading(false); 
+            }
+        }
+        // Se não estiver autenticado (sessão expirou, etc.), volta para o login
+        if (status === "unauthenticated") {
+            router.push('/');
+        }
+    }, [status, session, router]); // Depende do status da sessão
 
     // Função para dar cor ao Level (AUDIT, INFO, etc.)
     const getChipColor = (level: string) => {
@@ -54,6 +78,34 @@ export default function AuditoriaPage() {
         if (level === 'WARN') return 'warning';
         if (level === 'AUDIT') return 'success'; // Destaque para auditoria
         return 'info';
+    }
+
+     // --- Renderização Condicional ---
+
+    // 7. Estado de Carregamento (Verificando sessão)
+    if (status === "loading" || isAuthorized === null) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+                <CircularProgress />
+                <Typography ml={2}>Verificando permissões...</Typography>
+            </Box>
+        );
+    }
+
+    // 8. Estado de "Acesso Negado" (Usuário logado, mas não é admin)
+    if (isAuthorized === false) {
+        return (
+             <div className="p-4 md:p-6">
+                <Paper className="p-8 text-center text-gray-500 flex flex-col items-center gap-4">
+                    <Lock color="error" sx={{ fontSize: 60 }} />
+                    <Typography variant="h5" component="h2" className="font-bold">Acesso Negado</Typography>
+                    <Typography>Você não tem permissão de administrador para visualizar esta página.</Typography>
+                    <Button variant="contained" onClick={() => router.push('/')} sx={{ mt: 2 }}>
+                        Voltar ao Dashboard
+                    </Button>
+                </Paper>
+             </div>
+        );
     }
 
     return (
