@@ -1,26 +1,6 @@
 import NextAuth, { AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 
-// ... (outros logs) ...
-if (process.env.KEYCLOAK_CLIENT_ID) {
-  console.log("✅ KEYCLOAK_CLIENT_ID:", process.env.KEYCLOAK_CLIENT_ID);
-} else {
-  console.log("❌ ERRO: KEYCLOAK_CLIENT_ID é UNDEFINED!");
-}
-
-// ADICIONE ESTE BLOCO ABAIXO:
-if (process.env.KEYCLOAK_CLIENT_SECRET && process.env.KEYCLOAK_CLIENT_SECRET.length > 0) {
-  console.log("✅ KEYCLOAK_CLIENT_SECRET: Carregado (comprimento: " + process.env.KEYCLOAK_CLIENT_SECRET.length + ")");
-} else {
-  console.log("❌ ERRO: KEYCLOAK_CLIENT_SECRET é UNDEFINED ou VAZIO!");
-}
-// FIM DO BLOCO ADICIONADO
-
-console.log("=================================================\n");
-
-/**
- * Decodifica o payload de um JWT (sem verificar a assinatura)
- */
 function parseJwt(token: string) {
   try {
     const base64Url = token.split('.')[1];
@@ -55,23 +35,29 @@ export const authOptions: AuthOptions = {
   
   callbacks: {
     async jwt({ token, account }) {
-      if (account && account.access_token) {
-        // Na primeira vez que o usuário faz login (objeto 'account' existe),
-        // decodificamos o access_token do Keycloak.
+      // Executa somente na primeira autenticação
+      if (account?.access_token) {
         const decodedToken = parseJwt(account.access_token);
-        
-        // Extraímos os papéis do realm e os salvamos no token do NextAuth.
-        token.roles = decodedToken?.realm_access?.roles || [];
-        token.accessToken = account.access_token; // Salva o access token
+
+        // Evita erro quando o usuário não tem realm_access
+       const roles = decodedToken?.realm_access?.roles ?? [];
+
+        return {
+          ...token,
+          accessToken: account.access_token,
+          roles,
+        };
       }
+
+      // Para requests subsequentes, mantenha o token existente
       return token;
     },
     async session({ session, token }) {
-      // Em cada carregamento de página, copiamos os papéis do 
-      // token do NextAuth para a sessão do NextAuth.
-      if (token.roles) {
-        (session.user as any).roles = token.roles;
-      }
+      // Garante que não quebra se session.user for readonly
+      session.user = {
+        ...session.user,
+        roles: token.roles || [],
+      };
       // Copia o accessToken para a sessão
       session.accessToken = token.accessToken;
       return session;

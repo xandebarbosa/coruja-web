@@ -87,7 +87,7 @@ export default function Header({ title }: HeaderProps) {
                 <MenuItem onClick={handleMenuClose}>Meu Perfil</MenuItem>
                 <MenuItem onClick={handleMenuClose}>Configurações</MenuItem>
                 {/* 6. Conecte o botão "Sair" à sua nova função de logout */}
-                <MenuItem onClick={handleLogout}>Sair</MenuItem>
+                {/* <MenuItem onClick={handleLogout}>Sair</MenuItem> */}
               </Menu>
             </div>
           </div>

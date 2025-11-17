@@ -4,7 +4,8 @@ import { LocalSearchParams, MonitoredPlate, MonitoredPlateFormData, PaginatedAle
 
 // 1. A URL BASE CORRETA
 // Aponta para o seu API Gateway na porta 8081 e já inclui o prefixo /api
-const API_GATEWAY_URL = "/api";
+// const API_GATEWAY_URL = "/api"; // ISSO DEPENDE DE UM PROXY
+const API_GATEWAY_URL = "http://localhost:8080/api"; // MUDE PARA ISTO
 
 // 2. CRIA A INSTÂNCIA CENTRALIZADA DO AXIOS
 const api = axios.create({
@@ -46,15 +47,13 @@ api.interceptors.response.use(
         // Em vez de redirecionar para a página de signout,
         // usamos a função signOut() que limpa a sessão e 
         // nos redireciona para a página de login (definida no callbackUrl).
-        signOut({ callbackUrl: '/' });
+        //signOut({ callbackUrl: '/' });
       }
     }
     return Promise.reject(error);
   }
 );
 
-// 5. FUNÇÕES DA API REFATORADAS PARA USAR AXIOS
-// Todas as URLs agora são relativas à baseURL (http://localhost:8081/api)
 
 // =============================================
 // Rotas do RadarsBFFController
@@ -85,7 +84,7 @@ export async function searchByLocal(params: LocalSearchParams) {
 
 export async function getFilterOptions(concessionaria: string) {
   if (!concessionaria) return { rodovias: [], pracas: [], kms: [], sentidos: [] };
-  
+
   const response = await api.get(`/radares/concessionaria/${concessionaria}/opcoes-filtro`);
   return response.data;
 }
@@ -100,8 +99,25 @@ export async function getKmsByRodovia(concessionaria: string, rodovia: string) {
 }
 
 export async function getLatestRadars() {
-  const response = await api.get('/radares/ultimos-processados');
-  return response.data;
+  console.log("api object:", api);
+  try {
+    const response = await api.get('/radares/ultimos-processados');
+    console.log("getLatestRadars response ==>", response);
+    return response.data;
+  } catch (err) {
+    console.error("getLatestRadars erro =>", err);
+    // se for axios:
+    if ((err as any)?.response) {
+      console.error("status:", (err as any).response.status);
+      console.error("data:", (err as any).response.data);
+      console.error('[getLatestRadars] erro:', (err as any).message);
+      // opcional: lançar um erro customizado para UI
+      throw new Error('Falha ao buscar radares. Verifique console/network.');
+    } else {
+      console.error("message:", (err as any).message);
+    }
+    throw err; // repropagar se necessário
+  }
 }
 
 export async function searchAllByLocalForExport(params: Omit<LocalSearchParams, 'page' | 'pageSize'>) {

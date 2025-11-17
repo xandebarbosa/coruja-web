@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Client } from '@stomp/stompjs';
+import React, { useEffect, useRef, useState } from 'react';
+import { Client, Frame, IMessage } from '@stomp/stompjs';
 import { Box, Card, CardContent, Chip, CircularProgress, Grid, Paper, Typography } from '@mui/material';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
@@ -10,6 +10,8 @@ import SignpostIcon from '@mui/icons-material/Signpost';
 import PlacaMercosul from '../../components/PlacaMercosul';
 import { getLatestRadars } from '../../services/api';
 import SockJS from 'sockjs-client';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 
 // Crie uma interface para o objeto de radar que virá do WebSocket
@@ -32,54 +34,144 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
 
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // guarda referência do client para cleanup
+  const clientRef = useRef<Client | null>(null);
+  // guarda id da subscription para cancelar se necessário
+  const subscriptionRef = useRef<any>(null);
+
   // NOVO: useEffect para a carga inicial dos dados
   useEffect(() => {
-    async function fetchInitialData() {
-      try {
-        const latestRadars: RadarEvent[] = await getLatestRadars();
-        const initialRadarsState = latestRadars.reduce((acc, radar) => {
-          acc[radar.concessionaria.toUpperCase()] = radar;
-          return acc;
-        }, {} as Record<string, RadarEvent>);
-        setLastRadars(initialRadarsState);
-      } catch (error) {
-        console.error("Erro na carga inicial:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchInitialData();
-  }, []);
+    // Só busca os dados se a sessão estiver autenticada
+    if (status === 'authenticated') {
+      async function fetchInitialData() {
+        try {
+          const latestRadars: RadarEvent[] = await getLatestRadars();
+          const initialRadarsState = latestRadars.reduce((acc, radar) => {
+            acc[radar.concessionaria.toUpperCase()] = radar;
+            return acc;
+          }, {} as Record<string, RadarEvent>);
 
-  useEffect(() => {
-    // Cria um cliente STOMP sobre uma conexão SockJS
+          console.log("latestRadars ==>", latestRadars);
+          console.log("initialRadarsState ==>", initialRadarsState);
+          
+          setLastRadars(initialRadarsState);
+        } catch (error) {
+          console.error("Erro na carga inicial:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+      fetchInitialData();
+    }
+  }, [status]); // NOVO: Disparar quando o 'status' mudar para 'authenticated'
+
+    useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    // TENTATIVAS COMUNS DE ONDE O accessToken PODE ESTAR NO session:
+    const maybeToken =
+      // next-auth callback pode colocar em session.accessToken
+      (session as any)?.accessToken ||
+      // ou em session.user.accessToken
+      (session as any)?.user?.accessToken ||
+      (session as any)?.user?.access_token ||
+      (session as any)?.idToken; // fallback
+
+    if (!maybeToken) {
+      console.warn('Nenhum access token encontrado na sessão. Verifique callbacks do next-auth.');
+    }
+
+    const token = maybeToken ?? '';
+
+    // encode token para query param (cautela com caracteres especiais)
+    const sockJsUrl = `http://localhost:8080/api/ws?access_token=${encodeURIComponent(token)}`;
+
     const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws'), // URL do endpoint WebSocket no BFF
+      // webSocketFactory é usado para SockJS
+      webSocketFactory: () => new SockJS(sockJsUrl),
       debug: (str) => {
-        console.log(new Date(), str);
+        // descomente se quiser logs verbosos
+        console.debug('[STOMP]', str);
       },
       reconnectDelay: 5000,
-      heartbeatIncoming: 4000,
-      heartbeatOutgoing: 4000,
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      // Quando usar brokerURL em vez de webSocketFactory, brokerURL é ignorado ao fornecer webSocketFactory.
     });
 
-    client.onConnect = (frame) => {
-      client.subscribe('/topic/last-radar', (message) => {
-        if (message.body) {
-          const newRadarEvent: RadarEvent = JSON.parse(message.body);
-          
-          // MUDANÇA: Atualiza apenas a concessionária que enviou o dado
-          setLastRadars(currentRadars => ({
-            ...currentRadars,
-            [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
-          }));
-        }
-      });
+    client.onConnect = (frame: Frame) => {
+      console.info('STOMP conectado', frame);
+      setIsConnected(true);
+
+      // passe token também via headers do STOMP CONNECT (alguns servers usam isso)
+      // Note: ao usar client.activate(), connect headers podem ser passados por client.connectHeaders,
+      //   mas aqui vamos passar no subscribe/send conforme necessário.
+      try {
+        // subscribe ao tópico
+        const sub = client.subscribe('/topic/last-radar', (message: IMessage) => {
+          if (message.body) {
+            try {
+              const newRadarEvent: RadarEvent = JSON.parse(message.body);
+              setLastRadars((current) => ({
+                ...current,
+                [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
+              }));
+            } catch (err) {
+              console.error('Erro parseando mensagem STOMP:', err);
+            }
+          }
+        });
+        subscriptionRef.current = sub;
+        setIsSubscribed(true);
+      } catch (err) {
+        console.error('Erro ao subscrever:', err);
+      }
     };
 
+    client.onStompError = (frame) => {
+      console.error('Broker reported error: ' + frame.headers['message']);
+      console.error('Detalhes: ' + frame.body);
+    };
+
+    client.onWebSocketClose = (evt) => {
+      console.warn('WebSocket fechado', evt);
+      setIsConnected(false);
+      setIsSubscribed(false);
+    };
+
+    client.onWebSocketError = (evt) => {
+      console.error('WebSocket error', evt);
+    };
+
+    // Se quiser que o STOMP envie headers no connect:
+    if (token) {
+      (client as any).connectHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
+    }
+
+    clientRef.current = client;
     client.activate();
-    return () => { client.deactivate(); };
-  },[]);  
+
+    // Cleanup quando o componente desmontar ou status mudar
+    return () => {
+      try {
+        if (subscriptionRef.current) {
+          subscriptionRef.current.unsubscribe();
+          subscriptionRef.current = null;
+        }
+        if (clientRef.current) {
+          clientRef.current.deactivate(); // fecha conexões e para reconexão
+          clientRef.current = null;
+        }
+      } catch (err) {
+        console.error('Erro no cleanup do STOMP client:', err);
+      }
+    };
+  }, [status, session])
 
   // Função auxiliar para formatar a data/hora
   const formatDateTime = (data: string, hora: string) => {
@@ -96,6 +188,24 @@ export default function Dashboard() {
       return 'Data/Hora inválida';
     }
   };
+
+  // --- NOVO: Lógica de Proteção da Página ---
+  if (status === 'loading') {
+    return (
+      <Box className="flex justify-center items-center h-screen">
+        <CircularProgress color="warning" />
+      </Box>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    // Redireciona para a página de login (ou home)
+    router.push('/');
+    return null; // Retorna null enquanto redireciona
+  }
+  // --- Fim da Lógica de Proteção ---
+
+  // Se chegou aqui, status === 'authenticated', então renderiza a página
 
   return (
     <div className='p-4'>
