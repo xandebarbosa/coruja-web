@@ -5,7 +5,8 @@ import { LocalSearchParams, MonitoredPlate, MonitoredPlateFormData, PaginatedAle
 // 1. A URL BASE CORRETA
 // Aponta para o seu API Gateway na porta 8081 e já inclui o prefixo /api
 // const API_GATEWAY_URL = "/api"; // ISSO DEPENDE DE UM PROXY
-const API_GATEWAY_URL = "http://localhost:8080/api"; // MUDE PARA ISTO
+//const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API || "http://192.168.0.6:8081/api"; // MUDE PARA ISTO
+const API_GATEWAY_URL = "http://localhost:8080/api"; // MU
 
 // 2. CRIA A INSTÂNCIA CENTRALIZADA DO AXIOS
 const api = axios.create({
@@ -47,7 +48,7 @@ api.interceptors.response.use(
         // Em vez de redirecionar para a página de signout,
         // usamos a função signOut() que limpa a sessão e 
         // nos redireciona para a página de login (definida no callbackUrl).
-        //signOut({ callbackUrl: '/' });
+        signOut({ callbackUrl: '/' });
       }
     }
     return Promise.reject(error);

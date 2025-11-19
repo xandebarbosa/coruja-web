@@ -11,14 +11,14 @@ import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import PersonIcon from '@mui/icons-material/Person';
-import { getAlertHistory, getMonitoredPlates } from '../services/api'; // Ajuste a importação se necessário
-import { MonitoredPlate } from '../types/types';
-import CustomPagination from '../components/CustomPagination';
+import { getAlertHistory, getMonitoredPlates } from  '../../services/api'; // Ajuste a importação se necessário
+import { MonitoredPlate } from '../../types/types';
+import CustomPagination from '../../components/CustomPagination';
 import { Box, Paper, Typography, Chip, keyframes, Grid, Divider, Card, CardContent, IconButton, Menu, List, ListItem, Slider, MenuItem } from '@mui/material';
 import { Client } from '@stomp/stompjs';
 import { Settings, Visibility } from '@mui/icons-material';
 import AlertPreviewDialog from './components/PreviewDialog';
-import PlacaMercosul from '../components/PlacaMercosul';
+import PlacaMercosul from '../../components/PlacaMercosul';
 import SockJS from 'sockjs-client';
 import { toast } from 'react-toastify';
 
@@ -102,6 +102,8 @@ export default function MonitoramentoRealtimePage() {
     const audioCooldownRef = useRef(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    //const sockJsUrl = `${process.env.NEXT_PUBLIC_WS_URL}?access_token=${encodeURIComponent(token)}`;
     
     // --- Funções para controlar o Dialog ---
     const handlePreviewClick = (row: AlertHistoryRow) => {
