@@ -35,19 +35,9 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${poppins.className} antialiased`}
+        suppressHydrationWarning={true}
       >
-        <ToastContainer
-          position="top-right"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
-        />
+        <ToastContainer />
         <AuthProvider>
           <ThemeRegistry>
             {children}

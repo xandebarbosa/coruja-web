@@ -30,6 +30,15 @@ export const authOptions: AuthOptions = {
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
       issuer: process.env.KEYCLOAK_ISSUER!,
+
+      // --- CORREÇÃO: FORÇA AS URLS DE AUTORIZAÇÃO E TOKEN EXTERNAS ---
+      authorization: {
+        url: `${process.env.KEYCLOAK_ISSUER!}/protocol/openid-connect/auth`,
+        params: { scope: "openid email profile" },
+      },
+      token: {
+        url: `${process.env.KEYCLOAK_ISSUER!}/protocol/openid-connect/token`,
+      },
     }),
   ], 
   

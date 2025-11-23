@@ -6,7 +6,8 @@ import { LocalSearchParams, MonitoredPlate, MonitoredPlateFormData, PaginatedAle
 // Aponta para o seu API Gateway na porta 8081 e já inclui o prefixo /api
 // const API_GATEWAY_URL = "/api"; // ISSO DEPENDE DE UM PROXY
 //const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API || "http://192.168.0.6:8081/api"; // MUDE PARA ISTO
-const API_GATEWAY_URL = "http://localhost:8080/api"; // MU
+//const API_GATEWAY_URL = "http://localhost:8080/api"; 
+const API_GATEWAY_URL = "http://localhost:8081/api"
 
 // 2. CRIA A INSTÂNCIA CENTRALIZADA DO AXIOS
 const api = axios.create({

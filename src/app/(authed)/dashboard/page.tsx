@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -42,9 +43,8 @@ export default function Dashboard() {
   // guarda id da subscription para cancelar se necessário
   const subscriptionRef = useRef<any>(null);
 
-  // NOVO: useEffect para a carga inicial dos dados
+  // Busca dados iniciais
   useEffect(() => {
-    // Só busca os dados se a sessão estiver autenticada
     if (status === 'authenticated') {
       async function fetchInitialData() {
         try {
@@ -54,124 +54,158 @@ export default function Dashboard() {
             return acc;
           }, {} as Record<string, RadarEvent>);
 
-          console.log("latestRadars ==>", latestRadars);
-          console.log("initialRadarsState ==>", initialRadarsState);
-          
+          console.log("✅ Dados iniciais carregados:", initialRadarsState);
           setLastRadars(initialRadarsState);
         } catch (error) {
-          console.error("Erro na carga inicial:", error);
+          console.error("❌ Erro na carga inicial:", error);
+          setConnectionError("Falha ao carregar dados iniciais");
         } finally {
           setIsLoading(false);
         }
       }
       fetchInitialData();
     }
-  }, [status]); // NOVO: Disparar quando o 'status' mudar para 'authenticated'
+  }, [status]);
 
-    useEffect(() => {
+  // Configura conexão WebSocket
+  useEffect(() => {
     if (status !== 'authenticated') return;
 
-    // TENTATIVAS COMUNS DE ONDE O accessToken PODE ESTAR NO session:
-    const maybeToken =
-      // next-auth callback pode colocar em session.accessToken
+    // Extrai token de diferentes locais possíveis
+    const token = 
       (session as any)?.accessToken ||
-      // ou em session.user.accessToken
       (session as any)?.user?.accessToken ||
       (session as any)?.user?.access_token ||
-      (session as any)?.idToken; // fallback
+      (session as any)?.idToken;
 
-    if (!maybeToken) {
-      console.warn('Nenhum access token encontrado na sessão. Verifique callbacks do next-auth.');
+    console.log("🔑 Token encontrado:", token ? "Sim" : "Não");
+
+    if (!token) {
+      console.warn('⚠️ Nenhum access token encontrado. Redirecionando...');
+      setConnectionError("Token de autenticação não encontrado");
+      router.push('/');
+      return;
     }
 
-    const token = maybeToken ?? '';
+    // CORREÇÃO 1: Use apenas o endpoint base do WebSocket
+    // O SockJS automaticamente adiciona /info e outros sufixos
+    const sockJsBaseUrl = `http://localhost:8081/api/ws`;
 
-    // encode token para query param (cautela com caracteres especiais)
-    const sockJsUrl = `http://localhost:8080/api/ws?access_token=${encodeURIComponent(token)}`;
+    console.log("🔌 Iniciando conexão WebSocket para:", sockJsBaseUrl);
 
     const client = new Client({
-      // webSocketFactory é usado para SockJS
-      webSocketFactory: () => new SockJS(sockJsUrl),
-      debug: (str) => {
-        // descomente se quiser logs verbosos
-        console.debug('[STOMP]', str);
+      webSocketFactory: () => {
+        // CORREÇÃO 2: Crie o SockJS com configurações adequadas
+        const socket = new SockJS(sockJsBaseUrl, null, {
+          // Timeout aumentado para dar tempo ao backend processar
+          timeout: 10000,
+        });
+
+        // CORREÇÃO 3: Adicione listeners para debug
+        socket.onopen = () => console.log("✅ SockJS conectado");
+        socket.onerror = (e) => console.error("❌ Erro SockJS:", e);
+        
+        return socket;
       },
+
+      // CORREÇÃO 4: Configure headers de conexão com o token
+      connectHeaders: {
+        Authorization: `Bearer ${token}`,
+        // Alguns servidores podem esperar o token aqui também
+        'X-Authorization': `Bearer ${token}`,
+      },
+
+      debug: (str) => {
+        // Logs detalhados apenas em desenvolvimento
+        if (process.env.NODE_ENV === 'development') {
+          console.debug('[STOMP]', str);
+        }
+      },
+
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
-      // Quando usar brokerURL em vez de webSocketFactory, brokerURL é ignorado ao fornecer webSocketFactory.
     });
 
     client.onConnect = (frame: Frame) => {
-      console.info('STOMP conectado', frame);
+      console.info('✅ STOMP conectado com sucesso', frame);
       setIsConnected(true);
+      setConnectionError(null);
 
-      // passe token também via headers do STOMP CONNECT (alguns servers usam isso)
-      // Note: ao usar client.activate(), connect headers podem ser passados por client.connectHeaders,
-      //   mas aqui vamos passar no subscribe/send conforme necessário.
       try {
-        // subscribe ao tópico
-        const sub = client.subscribe('/topic/last-radar', (message: IMessage) => {
-          if (message.body) {
-            try {
-              const newRadarEvent: RadarEvent = JSON.parse(message.body);
-              setLastRadars((current) => ({
-                ...current,
-                [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
-              }));
-            } catch (err) {
-              console.error('Erro parseando mensagem STOMP:', err);
+        // Subscribe ao tópico com headers de autenticação
+        const sub = client.subscribe(
+          '/topic/last-radar',
+          (message: IMessage) => {
+            if (message.body) {
+              try {
+                const newRadarEvent: RadarEvent = JSON.parse(message.body);
+                console.log("📡 Novo evento recebido:", newRadarEvent);
+                
+                setLastRadars((current) => ({
+                  ...current,
+                  [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
+                }));
+              } catch (err) {
+                console.error('❌ Erro ao parsear mensagem:', err);
+              }
             }
+          },
+          // CORREÇÃO 5: Adicione headers na subscription também
+          {
+            Authorization: `Bearer ${token}`,
           }
-        });
+        );
+        
         subscriptionRef.current = sub;
         setIsSubscribed(true);
+        console.log("✅ Inscrito no tópico /topic/last-radar");
       } catch (err) {
-        console.error('Erro ao subscrever:', err);
+        console.error('❌ Erro ao subscrever:', err);
+        setConnectionError("Falha ao se inscrever no tópico");
       }
     };
 
     client.onStompError = (frame) => {
-      console.error('Broker reported error: ' + frame.headers['message']);
-      console.error('Detalhes: ' + frame.body);
+      console.error('❌ Erro STOMP:', frame.headers['message']);
+      console.error('Detalhes:', frame.body);
+      setConnectionError(`Erro STOMP: ${frame.headers['message']}`);
+      setIsConnected(false);
     };
 
     client.onWebSocketClose = (evt) => {
-      console.warn('WebSocket fechado', evt);
+      console.warn('⚠️ WebSocket fechado', evt);
       setIsConnected(false);
       setIsSubscribed(false);
     };
 
     client.onWebSocketError = (evt) => {
-      console.error('WebSocket error', evt);
+      console.error('❌ Erro WebSocket', evt);
+      setConnectionError("Erro na conexão WebSocket");
     };
 
-    // Se quiser que o STOMP envie headers no connect:
-    if (token) {
-      (client as any).connectHeaders = {
-        Authorization: `Bearer ${token}`,
-      };
-    }
-
     clientRef.current = client;
+    
+    // Ativa a conexão
     client.activate();
 
-    // Cleanup quando o componente desmontar ou status mudar
+    // Cleanup
     return () => {
+      console.log("🧹 Limpando conexões WebSocket");
       try {
         if (subscriptionRef.current) {
           subscriptionRef.current.unsubscribe();
           subscriptionRef.current = null;
         }
         if (clientRef.current) {
-          clientRef.current.deactivate(); // fecha conexões e para reconexão
+          clientRef.current.deactivate();
           clientRef.current = null;
         }
       } catch (err) {
-        console.error('Erro no cleanup do STOMP client:', err);
+        console.error('❌ Erro no cleanup:', err);
       }
     };
-  }, [status, session])
+  }, [status, session, router]);
 
   // Função auxiliar para formatar a data/hora
   const formatDateTime = (data: string, hora: string) => {
@@ -194,6 +228,7 @@ export default function Dashboard() {
     return (
       <Box className="flex justify-center items-center h-screen">
         <CircularProgress color="warning" />
+        <Typography className="ml-4">Carregando...</Typography>
       </Box>
     );
   }
@@ -212,6 +247,24 @@ export default function Dashboard() {
       <Card className='mb-4'>
         <CardContent>
           <Typography variant="h4" className="text-3xl font-roboto font-black text-gray-800">Dashboard</Typography>
+          {/* Indicadores de status */}
+          <Box className="flex gap-2 mt-2">
+            <Typography variant="caption" className={isConnected ? 'text-green-600' : 'text-red-600'}>
+              {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
+            </Typography>
+            {isSubscribed && (
+              <Typography variant="caption" className="text-blue-600">
+                📡 Recebendo eventos
+              </Typography>
+            )}
+          </Box>
+
+          {/* Erro de conexão */}
+          {connectionError && (
+            <Typography variant="body2" className="text-red-600 mt-2">
+              ⚠️ {connectionError}
+            </Typography>
+          )}
         </CardContent>
       </Card>
       
