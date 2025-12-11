@@ -43,18 +43,22 @@ export default function Dashboard() {
   // guarda id da subscription para cancelar se necessário
   const subscriptionRef = useRef<any>(null);
 
-  // Busca dados iniciais
+   // ✅ CORREÇÃO: URL base do backend
+  const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.6:8081").replace(/\/$/, "");
+
+   // Busca dados iniciais
   useEffect(() => {
     if (status === 'authenticated') {
       async function fetchInitialData() {
         try {
+          console.log("📡 Carregando dados iniciais...");
           const latestRadars: RadarEvent[] = await getLatestRadars();
           const initialRadarsState = latestRadars.reduce((acc, radar) => {
             acc[radar.concessionaria.toUpperCase()] = radar;
             return acc;
           }, {} as Record<string, RadarEvent>);
 
-          console.log("✅ Dados iniciais carregados:", initialRadarsState);
+          console.log("✅ Dados iniciais carregados:", Object.keys(initialRadarsState).length, "radares");
           setLastRadars(initialRadarsState);
         } catch (error) {
           console.error("❌ Erro na carga inicial:", error);
@@ -87,125 +91,74 @@ export default function Dashboard() {
       return;
     }
 
-    // CORREÇÃO 1: Use apenas o endpoint base do WebSocket
-    // O SockJS automaticamente adiciona /info e outros sufixos
-    const sockJsBaseUrl = `http://localhost:8081/api/ws`;
+    // Use NEXT_PUBLIC_API_URL se tiver, ou hardcode para teste com IP da máquina
+    const socketUrl= `${API_BASE_URL}/api/ws?access_token=${token}`;
+    console.log("🔌 Confirmando apiBaseUrl para:", socketUrl);
+    // ATENÇÃO: SockJS não suporta passar headers no handshake HTTP padrão.
+    // Precisamos passar o token na Query String para o handshake inicial.
+    //const sockJsUrl = `${socketUrl}/ws?access_token=${token}`;
 
-    console.log("🔌 Iniciando conexão WebSocket para:", sockJsBaseUrl);
+    console.log("🔌 [Front] Conectando em:", socketUrl);
+
 
     const client = new Client({
-      webSocketFactory: () => {
-        // CORREÇÃO 2: Crie o SockJS com configurações adequadas
-        const socket = new SockJS(sockJsBaseUrl, null, {
-          // Timeout aumentado para dar tempo ao backend processar
-          timeout: 10000,
-        });
-
-        // CORREÇÃO 3: Adicione listeners para debug
-        socket.onopen = () => console.log("✅ SockJS conectado");
-        socket.onerror = (e) => console.error("❌ Erro SockJS:", e);
-        
-        return socket;
-      },
-
-      // CORREÇÃO 4: Configure headers de conexão com o token
+      // A factory cria o socket apontando para a URL com token
+      webSocketFactory: () => new SockJS(socketUrl),
+      
+      // Também enviamos o token no cabeçalho STOMP para validação dupla/padrão
       connectHeaders: {
-        Authorization: `Bearer ${token}`,
-        // Alguns servidores podem esperar o token aqui também
-        'X-Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`
       },
-
-      debug: (str) => {
-        // Logs detalhados apenas em desenvolvimento
-        if (process.env.NODE_ENV === 'development') {
-          console.debug('[STOMP]', str);
-        }
-      },
-
+      
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
+      
+      // Debug apenas em desenvolvimento
+      debug: (str) => {
+        if (process.env.NODE_ENV === 'development') console.debug('[STOMP]', str);
+      },
     });
 
-    client.onConnect = (frame: Frame) => {
-      console.info('✅ STOMP conectado com sucesso', frame);
+    client.onConnect = (frame) => {
+      console.log('✅ [WS] Conectado e Autenticado!');
       setIsConnected(true);
       setConnectionError(null);
 
-      try {
-        // Subscribe ao tópico com headers de autenticação
-        const sub = client.subscribe(
-          '/topic/last-radar',
-          (message: IMessage) => {
-            if (message.body) {
-              try {
-                const newRadarEvent: RadarEvent = JSON.parse(message.body);
-                console.log("📡 Novo evento recebido:", newRadarEvent);
-                
-                setLastRadars((current) => ({
-                  ...current,
-                  [newRadarEvent.concessionaria.toUpperCase()]: newRadarEvent,
-                }));
-              } catch (err) {
-                console.error('❌ Erro ao parsear mensagem:', err);
-              }
-            }
-          },
-          // CORREÇÃO 5: Adicione headers na subscription também
-          {
-            Authorization: `Bearer ${token}`,
-          }
-        );
-        
-        subscriptionRef.current = sub;
-        setIsSubscribed(true);
-        console.log("✅ Inscrito no tópico /topic/last-radar");
-      } catch (err) {
-        console.error('❌ Erro ao subscrever:', err);
-        setConnectionError("Falha ao se inscrever no tópico");
-      }
+      client.subscribe('/topic/last-radar', (message) => {
+        if (message.body) {
+          try {
+            const event: RadarEvent = JSON.parse(message.body);
+            setLastRadars(prev => ({
+              ...prev,
+              [event.concessionaria.toUpperCase()]: event
+            }));
+          } catch (e) { console.error("Erro ao processar mensagem WS:", e); }
+        }
+      });
     };
 
     client.onStompError = (frame) => {
       console.error('❌ Erro STOMP:', frame.headers['message']);
-      console.error('Detalhes:', frame.body);
-      setConnectionError(`Erro STOMP: ${frame.headers['message']}`);
-      setIsConnected(false);
+      setConnectionError("Erro de protocolo WebSocket");
     };
 
-    client.onWebSocketClose = (evt) => {
-      console.warn('⚠️ WebSocket fechado', evt);
-      setIsConnected(false);
-      setIsSubscribed(false);
-    };
+    client.onWebSocketError = (e) => {
+        console.error('❌ Erro de Rede WebSocket:', e);
+        setConnectionError("Falha na conexão com servidor");
+        setIsConnected(false);
+    }
 
-    client.onWebSocketError = (evt) => {
-      console.error('❌ Erro WebSocket', evt);
-      setConnectionError("Erro na conexão WebSocket");
-    };
-
-    clientRef.current = client;
-    
-    // Ativa a conexão
     client.activate();
+    clientRef.current = client;
 
-    // Cleanup
     return () => {
-      console.log("🧹 Limpando conexões WebSocket");
-      try {
-        if (subscriptionRef.current) {
-          subscriptionRef.current.unsubscribe();
-          subscriptionRef.current = null;
-        }
-        if (clientRef.current) {
-          clientRef.current.deactivate();
-          clientRef.current = null;
-        }
-      } catch (err) {
-        console.error('❌ Erro no cleanup:', err);
+      if (clientRef.current) {
+        console.log("bs [WS] Desconectando...");
+        clientRef.current.deactivate();
       }
     };
-  }, [status, session, router]);
+  }, [status, API_BASE_URL, session]);
 
   // Função auxiliar para formatar a data/hora
   const formatDateTime = (data: string, hora: string) => {

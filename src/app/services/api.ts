@@ -1,57 +1,85 @@
-import axios from "axios";
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { getSession, signOut } from "next-auth/react";
 import { LocalSearchParams, MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates } from "../types/types"; // Supondo que você moveu suas interfaces para cá
 
-// 1. A URL BASE CORRETA
-// Aponta para o seu API Gateway na porta 8081 e já inclui o prefixo /api
-// const API_GATEWAY_URL = "/api"; // ISSO DEPENDE DE UM PROXY
+interface RadarEvent {
+  concessionaria: string;
+  data: string;
+  hora: string;
+  placa: string;
+  rodovia: string;
+  praca: string;
+  sentido: string;
+  km: string;
+}
 //const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API || "http://192.168.0.6:8081/api"; // MUDE PARA ISTO
 //const API_GATEWAY_URL = "http://localhost:8080/api"; 
-const API_GATEWAY_URL = "http://localhost:8081/api"
+// ✅ CORREÇÃO: URL base SEM /api (backend não tem esse prefixo)
+const ENV_HOST = "http://192.168.0.6:8081";
 
-// 2. CRIA A INSTÂNCIA CENTRALIZADA DO AXIOS
-const api = axios.create({
-  baseURL: API_GATEWAY_URL,
+const API_BASE_URL = `${ENV_HOST}/api`;
+
+// Cria instância do Axios com configuração base
+const api: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  // ✅ CORREÇÃO: Permite enviar cookies e credentials
+  withCredentials: false, // Mudamos para false porque usamos Bearer token
 });
 
-// 3. INTERCEPTOR DE REQUISIÇÃO (INJETA O TOKEN)
-// Isso é o que faz a autenticação funcionar automaticamente
+// ✅ Interceptor de REQUEST - Adiciona token automaticamente
 api.interceptors.request.use(
   async (config) => {
-    const session = await getSession(); // Pega a sessão do Next-Auth
+    const session = await getSession();
     if (session && session.accessToken) {
-      // Adiciona o token Bearer no cabeçalho
       config.headers["Authorization"] = `Bearer ${session.accessToken}`;
     }
+    // Log para confirmar para onde a requisição está indo
+    console.log(`🚀 [Axios] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
+    console.error('❌ Erro no interceptor de request:', error);
     return Promise.reject(error);
   }
 );
 
-// Flag para evitar loops de logout
-let isSigningOut = false;
-
-// 4. INTERCEPTOR DE RESPOSTA (LIDA COM TOKEN EXPIRADO)
+// Response: Trata erros globais
 api.interceptors.response.use(
-  (response) => response, // Sucesso: apenas repassa a resposta
+  (response) => response,
   (error) => {
-    // Se o erro for 401 (Não Autorizado), o token expirou ou é inválido
-    if (error.response && error.response.status === 401) {
-      
-      // MUDANÇA AQUI:
-      // Evita que 10 chamadas de API falhem e tentem fazer logout 10 vezes
-      if (!isSigningOut) {
-        isSigningOut = true;
-        console.error("Erro 401 detectado. Token inválido ou expirado. Deslogando...");
-        
-        // Em vez de redirecionar para a página de signout,
-        // usamos a função signOut() que limpa a sessão e 
-        // nos redireciona para a página de login (definida no callbackUrl).
-        signOut({ callbackUrl: '/' });
+    if (error.response) {
+      // O servidor respondeu com um status de erro (4xx, 5xx)
+      console.error(`❌ [API Error ${error.response.status}]:`, {
+        url: error.config?.url,
+        message: error.response.data?.message || error.message,
+      });
+
+      switch (error.response.status) {
+        case 401:
+          console.warn('🔒 Token inválido/expirado. Deslogando...');
+          // Evita loop de redirecionamento se já estiver na página de login
+          if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+             signOut({ callbackUrl: '/' });
+          }
+          break;
+        case 403:
+          console.error('🚫 Acesso negado (403). Verifique as roles do usuário.');
+          break;
+        case 404:
+          console.error('🔍 Endpoint não encontrado (404). Verifique a URL e o Gateway.');
+          break;
       }
+    } else if (error.request) {
+      // A requisição foi feita mas não houve resposta (Timeout, Rede, CORS, Backend down)
+      console.error("❌ [API Network] Sem resposta. Backend offline ou bloqueio de CORS.");
+    } else {
+      console.error('⚙️ Erro na configuração do Axios:', error.message);
     }
+
     return Promise.reject(error);
   }
 );
@@ -84,11 +112,39 @@ export async function searchByLocal(params: LocalSearchParams) {
   return response.data;
 }
 
-export async function getFilterOptions(concessionaria: string) {
-  if (!concessionaria) return { rodovias: [], pracas: [], kms: [], sentidos: [] };
+/**
+ * Busca opções de filtro para uma concessionária.
+ */
+export async function getFilterOptions(concessionaria: string): Promise<any> {
+  try {
+    console.log(`⚙️ Buscando opções de filtro para: ${concessionaria}`);
+    const response = await api.get(`/radares/concessionaria/${concessionaria}/opcoes-filtro`,
+      {
+        // Sobrescreve o timeout global de 10s para 20s apenas nesta requisição
+        timeout: 45000 
+      }
+    );
 
-  const response = await api.get(`/radares/concessionaria/${concessionaria}/opcoes-filtro`);
-  return response.data;
+    // Validação extra: Se veio 200 mas arrays vazios, pode ser Circuit Breaker
+    const data = response.data;
+    if (data.rodovias.length === 0 && data.pracas.length === 0) {
+        console.warn("⚠️ [API] Recebido objeto vazio. Possível fallback do Circuit Breaker.");
+    } else {
+        console.log('✅ [API] Filtros recebidos com sucesso!', response.data);
+    }
+    
+    return response.data;
+  } catch (error: any) {
+    // Tratamento específico para timeout
+    if (error.code === 'ECONNABORTED') {
+        console.warn(`⚠️ Timeout nos filtros da ${concessionaria}. Retornando vazio para não travar a tela.`);
+         // Retorna objeto vazio para a UI não quebrar
+         return { rodovias: [], pracas: [], kms: [], sentidos: [] };
+    } else {
+        console.error('❌ Erro ao buscar opções de filtro:', error.message);
+    }
+    throw error;
+  }
 }
 
 export async function getKmsByRodovia(concessionaria: string, rodovia: string) {
@@ -100,25 +156,46 @@ export async function getKmsByRodovia(concessionaria: string, rodovia: string) {
   return response.data;
 }
 
-export async function getLatestRadars() {
-  console.log("api object:", api);
+/**
+ * Busca os últimos radares processados de cada concessionária.
+ * ✅ CORREÇÃO: Rota corrigida sem /api
+ */
+export async function getLatestRadars(): Promise<RadarEvent[]> {
   try {
-    const response = await api.get('/radares/ultimos-processados');
-    console.log("getLatestRadars response ==>", response);
+    console.log('📡 Buscando últimos radares...');
+    const response = await api.get<RadarEvent[]>('/radares/ultimos-processados');
+    console.log('✅ Radares recebidos:', response.data.length);
     return response.data;
-  } catch (err) {
-    console.error("getLatestRadars erro =>", err);
-    // se for axios:
-    if ((err as any)?.response) {
-      console.error("status:", (err as any).response.status);
-      console.error("data:", (err as any).response.data);
-      console.error('[getLatestRadars] erro:', (err as any).message);
-      // opcional: lançar um erro customizado para UI
-      throw new Error('Falha ao buscar radares. Verifique console/network.');
-    } else {
-      console.error("message:", (err as any).message);
-    }
-    throw err; // repropagar se necessário
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar últimos radares:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Busca radares com filtros e paginação.
+ */
+export async function getRadarsWithFilters(params: {
+  concessionaria?: string[];
+  placa?: string;
+  praca?: string;
+  rodovia?: string;
+  km?: string;
+  sentido?: string;
+  data?: string;
+  horaInicial?: string;
+  horaFinal?: string;
+  page?: number;
+  size?: number;
+}): Promise<any> {
+  try {
+    console.log('🔍 Buscando radares com filtros:', params);
+    const response = await api.get('/radares/filtros', { params });
+    console.log('✅ Resultados recebidos:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar radares com filtros:', error.message);
+    throw error;
   }
 }
 
@@ -133,31 +210,91 @@ export async function searchAllByLocalForExport(params: Omit<LocalSearchParams, 
 // Rotas do MonitoramentoBFFController
 // =============================================
 
-export async function getMonitoredPlates(
-  page: number, 
-  pageSize: number, 
-  sort: string = 'createdAt,asc'
-): Promise<PaginatedMonitoredPlates> {
-  const response = await api.get('/monitoramento', {
-    params: { page, size: pageSize, sort }
-  });
-  return response.data;
+/**
+ * Busca placas monitoradas com paginação.
+ */
+export async function getMonitoredPlates(params: {
+  page?: number;
+  size?: number;
+}): Promise<any> {
+  try {
+    console.log('👁️ Buscando placas monitoradas:', params);
+    const response = await api.get('/monitoramento', { params });
+    console.log('✅ Placas recebidas:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar placas monitoradas:', error.message);
+    throw error;
+  }
 }
 
-export async function createMonitoredPlate(data: MonitoredPlateFormData): Promise<MonitoredPlate> {
-  // O Axios converte o objeto 'data' para JSON automaticamente
-  const response = await api.post('/monitoramento', data);
-  return response.data;
+/**
+ * Cria uma nova placa monitorada.
+ */
+export async function createMonitoredPlate(data: {
+  placa: string;
+  marcaModelo?: string;
+  cor?: string;
+  motivo: string;
+  interessado?: string;
+  observacao?: string;
+}): Promise<any> {
+  try {
+    console.log('➕ Criando placa monitorada:', data);
+    const response = await api.post('/monitoramento', data);
+    console.log('✅ Placa criada:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao criar placa monitorada:', error.message);
+    throw error;
+  }
 }
 
-export async function updateMonitoredPlate(id: number, data: MonitoredPlateFormData): Promise<MonitoredPlate> {
-  const response = await api.put(`/monitoramento/${id}`, data);
-  return response.data;
+/**
+ * Atualiza uma placa monitorada.
+ */
+export async function updateMonitoredPlate(id: number, data: any): Promise<any> {
+  try {
+    console.log(`📝 Atualizando placa ${id}:`, data);
+    const response = await api.put(`/monitoramento/${id}`, data);
+    console.log('✅ Placa atualizada:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao atualizar placa:', error.message);
+    throw error;
+  }
 }
 
+/**
+ * Deleta uma placa monitorada.
+ */
 export async function deleteMonitoredPlate(id: number): Promise<void> {
-  await api.delete(`/monitoramento/${id}`);
-  // O Axios trata o 204 No Content automaticamente
+  try {
+    console.log(`🗑️ Deletando placa ${id}`);
+    await api.delete(`/monitoramento/${id}`);
+    console.log('✅ Placa deletada');
+  } catch (error: any) {
+    console.error('❌ Erro ao deletar placa:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Busca alertas de passagem.
+ */
+export async function getAlerts(params: {
+  page?: number;
+  size?: number;
+}): Promise<any> {
+  try {
+    console.log('🚨 Buscando alertas:', params);
+    const response = await api.get('/monitoramento/alertas', { params });
+    console.log('✅ Alertas recebidos:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar alertas:', error.message);
+    throw error;
+  }
 }
 
 export async function getAlertHistory(
@@ -175,12 +312,23 @@ export async function getAlertHistory(
 // Rotas do LogController e Análise (com /api/ extra)
 // =============================================
 
-export async function searchLogs(query: string, page: number, pageSize: number) {
-  // Esta rota tem um /api/ extra por causa do @RequestMapping no seu BFF
-  const response = await api.get('/api/logs/search', {
-    params: { query, page, size: pageSize }
-  });
-  return response.data;
+/**
+ * Busca logs no Elasticsearch.
+ */
+export async function searchLogs(params: {
+  query?: string;
+  page?: number;
+  size?: number;
+}): Promise<any> {
+  try {
+    console.log('📋 Buscando logs:', params);
+    const response = await api.get('/logs/search', { params });
+    console.log('✅ Logs recebidos:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Erro ao buscar logs:', error.message);
+    throw error;
+  }
 }
 
 export async function analisarPlacaComIA(placa: string): Promise<string> {
