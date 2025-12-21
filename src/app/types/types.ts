@@ -1,4 +1,4 @@
-export interface RadarDTO {
+export interface RadarsDTO {
     id: number;
     rodovia: string;
     km: string;

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from "react";
-import { searchLogs } from  "../../services/api"; // Usamos a mesma API de logs
+import { searchLogs } from  "../../services/radars"; // Usamos a mesma API de logs
 import { Box, Button, Card, CardContent, Chip, CircularProgress, Paper, TextField, Typography } from "@mui/material";
 import { Person, Label, HistoryToggleOff, Lock } from '@mui/icons-material';
 import { useSession } from "next-auth/react";

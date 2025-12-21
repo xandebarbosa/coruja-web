@@ -3,8 +3,9 @@
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Switch, TextField } from '@mui/material';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, Switch, TextField } from '@mui/material';
 import { useEffect } from 'react';
+import { MonitoredPlate, MonitoredPlateFormData } from '@/app/types/types';
 
 //Schema de validação com Yup
 const validationSchema = yup.object({
@@ -24,170 +25,231 @@ type FormData = yup.InferType<typeof validationSchema>;
 interface RegisterFormDialogProps {
     open: boolean;
     onClose: () => void;
-    onSubmit: (data: FormData, id?: number) => void; // A função de submit agora pode receber um ID
-    initialData?: FormData & { id?: number } | null; // Dados para pré-preenchimento
+    onSubmit: (data: MonitoredPlateFormData, id?: number) => void; // A função de submit agora pode receber um ID
+    initialData?: MonitoredPlate | null; // Dados para pré-preenchimento
 }
 
+const DEFAULT_VALUES: FormData = {
+  placa: '',
+  marcaModelo: '',
+  cor: '',
+  motivo: '',
+  interessado: '',
+  observacao: '',
+  statusAtivo: true,
+};
+
 export default function RegisterFormDialog({ open, onClose, onSubmit, initialData }: RegisterFormDialogProps) {
-    const { control, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+    
+  const { 
+    control, 
+    handleSubmit, 
+    reset,
+    formState: { errors, isSubmitting } 
+  } = useForm<FormData>({
     resolver: yupResolver(validationSchema),
-    defaultValues: {
-      placa: '',
-      marcaModelo: '',
-      cor: '',
-      motivo: '',
-      interessado: '',
-      observacao: '',
-      statusAtivo: true,
-    },
+    defaultValues: DEFAULT_VALUES,
   });
 
-  // NOVO: useEffect para preencher o formulário quando estiver em modo de edição
+  // Effect para preencher ou limpar o formulário ao abrir/fechar ou mudar dados
   useEffect(() => {
-    if (initialData) {
-      // 'reset' preenche o formulário com os dados iniciais
-      reset(initialData);
-    } else {
-      // Se não há dados iniciais, garante que o formulário esteja limpo (modo de criação)
-      reset({
-        placa: '', marcaModelo: '', cor: '', motivo: '', interessado: '', observacao: '', statusAtivo: true
-      });
+    if (open) {
+      if (initialData) {
+        // ✅ CORREÇÃO CRÍTICA: Mapeia explicitamente para evitar erro de tipo (undefined -> string vazia)
+        reset({
+          placa: initialData.placa,
+          marcaModelo: initialData.marcaModelo || '',
+          cor: initialData.cor || '',
+          motivo: initialData.motivo || '',
+          interessado: initialData.interessado || '',
+          observacao: initialData.observacao || '',
+          statusAtivo: initialData.statusAtivo ?? true, // Nullish coalescing para boolean
+        });
+      } else {
+        // Reseta para os valores padrão se for novo cadastro
+        reset(DEFAULT_VALUES);
+      }
     }
-  }, [initialData, open, reset]); // Roda sempre que o dialog abre ou os dados iniciais mudam
+  }, [initialData, open, reset]);
 
-  const handleFormSubmit = (data: FormData) => {
+  const onFormSubmit = (data: FormData) => {
+    // Passa os dados e o ID (se existir) para o pai
     onSubmit(data, initialData?.id);
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle fontWeight="bold">Adicionar Novo Veículo para Monitoramento</DialogTitle>
-      
-      {/* O formulário agora envolve o conteúdo e usa o 'handleSubmit' do React Hook Form */}
-      <Box component="form" onSubmit={handleSubmit(handleFormSubmit)}>
-        <DialogContent>
-          <Box className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      fullWidth 
+      maxWidth="sm"
+      // Evita fechar clicando fora se estiver salvando
+      disableEscapeKeyDown={isSubmitting}
+      >
+      <form onSubmit={handleSubmit(onFormSubmit)}>
+        <DialogTitle fontWeight="bold">
+          {initialData ? 'Editar Veículo' : 'Adicionar Novo Veículo'}
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <Grid container spacing={2}>
             
-            {/* Cada campo agora usa o componente 'Controller' para se integrar com o React Hook Form */}
-            <Controller
-              name="placa"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  autoFocus
-                  margin="dense"
-                  label="Placa"
-                  fullWidth
-                  variant="outlined"
-                  error={!!errors.placa}
-                  helperText={errors.placa?.message}
-                />
-              )}
-            />
-            <Controller
-              name="cor"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  margin="dense"
-                  label="Cor"
-                  fullWidth
-                  variant="outlined"
-                  error={!!errors.cor}
-                  helperText={errors.cor?.message}
-                />
-              )}
-            />
-            <Controller
-              name="marcaModelo"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  margin="dense"
-                  label="Marca/Modelo"
-                  fullWidth
-                  variant="outlined"
-                  className="md:col-span-2"
-                  error={!!errors.marcaModelo}
-                  helperText={errors.marcaModelo?.message}
-                />
-              )}
-            />
-             <Controller
-              name="motivo"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  margin="dense"
-                  label="Motivo do Monitoramento"
-                  fullWidth                  
-                  variant="outlined"
-                  className="md:col-span-2"
-                  error={!!errors.motivo}
-                  helperText={errors.motivo?.message}
-                />
-              )}
-            />
-            <Controller
+            {/* Placa */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Controller
+                name="placa"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    autoFocus
+                    label="Placa"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.placa}
+                    helperText={errors.placa?.message}
+                    // Desabilita edição da placa se for atualização (opcional)
+                    // disabled={!!initialData}
+                    inputProps={{ style: { textTransform: 'uppercase' } }}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Status Switch */}
+            <Grid size={{ xs: 12, sm: 6 }} display="flex" alignItems="center">
+              <Controller
+                name="statusAtivo"
+                control={control}
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={
+                      <Switch 
+                        checked={field.value} 
+                        onChange={(e) => field.onChange(e.target.checked)} 
+                        color="success" 
+                      />
+                    }
+                    label="Monitoramento Ativo"
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Marca/Modelo */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Controller
+                name="marcaModelo"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Marca/Modelo"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.marcaModelo}
+                    helperText={errors.marcaModelo?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Cor */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Controller
+                name="cor"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Cor"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.cor}
+                    helperText={errors.cor?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Interessado */}
+            <Grid size={{ xs: 12 }}>
+              <Controller
+                name="interessado"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Interessado / Solicitante"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.interessado}
+                    helperText={errors.interessado?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Motivo */}
+            <Grid size={{ xs: 12 }}>
+              <Controller
+                name="motivo"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Motivo do Monitoramento"
+                    fullWidth
+                    multiline
+                    rows={2}
+                    variant="outlined"
+                    error={!!errors.motivo}
+                    helperText={errors.motivo?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Observação */}
+            <Grid size={{ xs: 12 }}>
+              <Controller
                 name="observacao"
                 control={control}
                 render={({ field }) => (
-                    <TextField
-                        {...field}
-                        margin="dense"
-                        label="Observação"
-                        fullWidth
-                        multiline
-                        rows={4}
-                        variant="outlined"
-                        className="md:col-span-2"
-                        error={!!errors.observacao}
-                        helperText={errors.motivo?.message}
-                    />
+                  <TextField
+                    {...field}
+                    label="Observação"
+                    fullWidth
+                    multiline
+                    rows={3}
+                    variant="outlined"
+                    error={!!errors.observacao}
+                    helperText={errors.observacao?.message}
+                  />
                 )}
-            />
-            <Controller
-              name="statusAtivo"
-              control={control}
-              render={({ field }) => (
-                <FormControlLabel 
-                  control={<Switch {...field} checked={field.value} color="warning" />} 
-                  label="Ativar Monitoramento" 
-                />
-              )}
-            />
-            <Controller
-              name="interessado"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  margin="dense"
-                  label="Interessado"
-                  fullWidth
-                  variant="outlined"
-                  className="md:col-span-2"
-                  error={!!errors.interessado}
-                  helperText={errors.interessado?.message}
-                />
-              )}
-            />
-            
-          </Box>
+              />
+            </Grid>
+
+          </Grid>
         </DialogContent>
-        <DialogActions className="p-4">
-          <Button variant='outlined' onClick={onClose}>Cancelar</Button>
-          <Button type="submit" variant='contained' className="bg-orange-500 hover:bg-orange-600">
+
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={onClose} variant="outlined" color="inherit">
+            Cancelar
+          </Button>
+          <Button 
+            type="submit" 
+            variant="contained" 
+            color="primary"
+            disabled={isSubmitting} // Desabilita botão enquanto envia
+            className="bg-orange-500 hover:bg-orange-600"
+          >
             {initialData ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
         </DialogActions>
-      </Box>
+      </form>
     </Dialog>
-  )
+  );
 }
 
 

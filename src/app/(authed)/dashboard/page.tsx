@@ -8,7 +8,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessIcon from '@mui/icons-material/Business';
 import SignpostIcon from '@mui/icons-material/Signpost';
 import PlacaMercosul from '../../components/PlacaMercosul';
-import { getLatestRadars } from '../../services/api';
+import { RadarsService } from '../../services';
 import SockJS from 'sockjs-client';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
@@ -52,7 +52,7 @@ export default function Dashboard() {
       async function fetchInitialData() {
         try {
           console.log("📡 Carregando dados iniciais...");
-          const latestRadars: RadarEvent[] = await getLatestRadars();
+          const latestRadars: RadarEvent[] = await RadarsService.getLatestRadars();
           const initialRadarsState = latestRadars.reduce((acc, radar) => {
             acc[radar.concessionaria.toUpperCase()] = radar;
             return acc;

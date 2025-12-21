@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-import { getFilterOptions, searchByLocal, getKmsByRodovia, searchAllByLocalForExport } from '../../services/api';
+//import { getFilterOptions, searchByLocal, getKmsByRodovia, searchAllByLocalForExport } from '../../services/radars';
+
+import { radarsService } from '../../services'
+
 import { LocalSearchParams } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
 import { Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
@@ -10,8 +13,62 @@ import { exportToExcel } from '../../components/ExportExcel';
 import { toast } from 'react-toastify';
 //import { ExportExcel } from '../components/ExportExcel';
 
+// =============================================
+// Tipos e Interfaces
+// =============================================
+
+interface FilterState {
+  concessionaria: string;
+  rodovia: string;
+  praca: string;
+  km: string;
+  sentido: string;
+  data: string;
+  horaInicial: string;
+  horaFinal: string;
+}
+
+interface OptionsState {
+  rodovias: string[];
+  kms: string[];
+  sentidos: string[];
+  pracas: string[];
+}
+
+const INITIAL_FILTERS: FilterState = {
+  concessionaria: '',
+  rodovia: '',
+  praca: '',
+  km: '',
+  sentido: '',
+  data: '',
+  horaInicial: '',
+  horaFinal: '',
+};
+
+const INITIAL_OPTIONS: OptionsState = {
+  rodovias: [],
+  kms: [],
+  sentidos: [],
+  pracas: [],
+};
+
+const CONCESSIONARIAS = [
+  { value: 'cart', label: 'Cart' },
+  { value: 'eixo', label: 'Eixo' },
+  { value: 'rondon', label: 'Rondon' },
+  { value: 'entrevias', label: 'Entrevias' },
+] as const;
+
+// =============================================
+// Configuração das Colunas
+// =============================================
+
 const columns: GridColDef[] = [
-  { field: 'data', headerName: 'Data', width: 150, 
+  { 
+    field: 'data', 
+    headerName: 'Data', 
+    width: 150, 
     valueFormatter: (value: string) => {
       if (!value) {
         return '';
@@ -31,30 +88,14 @@ const columns: GridColDef[] = [
 ];
 
 export default function ConsultaLocal() {
-  const [filters, setFilters] = useState({
-    concessionaria: '',
-    rodovia: '',
-    praca: '',
-    km: '',
-    sentido: '',
-    data: '',
-    horaInicial: '',
-    horaFinal: '',
-  });
+  const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
+  const [options, setOptions] = useState<OptionsState>(INITIAL_OPTIONS);
 
-  //Armazena as opções dos selects
-  const [options, setOptions] = useState({
-    rodovias: [],    
-    kms: [],
-    sentidos: [],
-    pracas: [],
-  });
-
+  const [loading, setLoading] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [kmsLoading, setKmsLoading] = useState(false); // Novo estado de loading para os KMs
 
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [rowCount, setRowCount] = useState(0);
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
@@ -73,7 +114,7 @@ export default function ConsultaLocal() {
       setOptionsLoading(true);
 
       try {
-        const data = await getFilterOptions(filters.concessionaria);
+        const data = await radarsService.getFilterOptions(filters.concessionaria);
         // Inicializamos os KMs como uma lista vazia
         setOptions({ ...data, kms: [] });
       } catch (error) {
@@ -99,7 +140,7 @@ export default function ConsultaLocal() {
             }
             setKmsLoading(true);
             try {
-                const kmsData = await getKmsByRodovia(filters.concessionaria, filters.rodovia);
+                const kmsData = await radarsService.getKmsByRodovia(filters.concessionaria, filters.rodovia);
                 setOptions(prev => ({ ...prev, kms: kmsData }));
             } catch (error) {
                 console.error("Erro ao buscar KMs:", error);
@@ -176,7 +217,7 @@ export default function ConsultaLocal() {
 
         try {
             // Chama a API com os parâmetros limpos e corretos
-            const data = await searchByLocal(paramsToSend);            
+            const data = await radarsService.searchByLocal(paramsToSend);            
             setRows(data.content);
             setRowCount(data.page.totalElements);
         } catch (error) {
@@ -214,7 +255,7 @@ export default function ConsultaLocal() {
             };
 
             // Chama a nova função da API que busca TODOS os dados
-            const allData = await searchAllByLocalForExport(paramsToExport);
+            const allData = await radarsService.searchAllByLocalForExport(paramsToExport);
 
             if (allData.length === 0) {
               alert("Nenhum dado encontrado para exportar com os filtros selecionados.");
@@ -371,7 +412,7 @@ export default function ConsultaLocal() {
         </div>
       </div>
       
-      <Box className="bg-white rounded-lg shadow-sm h-[36rem] w-full">
+      <Box className="bg-white rounded-lg shadow-sm h-[53rem] w-full">
         <DataGrid
           rows={rows}
           columns={columns}

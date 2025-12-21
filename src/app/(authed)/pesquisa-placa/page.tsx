@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-import { searchByPlaca } from '../../services/api';
+//import { searchByPlaca } from '../../services/radars';
+import { radarsService } from '../../services'
 import CustomPagination from '../../components/CustomPagination';
-import { Button, Card, CardContent, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, TextField, Typography } from '@mui/material';
 
 interface RadarPlaca {
   id: number;
@@ -58,7 +59,7 @@ export default function ConsultaPlaca() {
     }
     setLoading(true);
     try {
-      const data = await searchByPlaca(placaInput, page, pageSize);
+      const data = await radarsService.searchByPlaca(placaInput, page, pageSize);
 
       // LÓGICA PARA ENCONTRAR O REGISTRO MAIS RECENTE
       if (data.content && data.content.length > 0) {
@@ -119,7 +120,7 @@ export default function ConsultaPlaca() {
         </div>
       </div>
       
-      <div style={{ height: 600, width: '100%' }} className="bg-white rounded-lg shadow-sm">
+      <Box className="bg-white rounded-lg shadow-sm w-full h-[56rem]" >
         <DataGrid
           rows={rows}
           columns={columns}
@@ -154,7 +155,7 @@ export default function ConsultaPlaca() {
           }}
           
         />
-      </div>
+      </Box>
     </div>
   );
 }

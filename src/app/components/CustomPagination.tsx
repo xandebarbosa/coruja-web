@@ -11,9 +11,12 @@ import {
 import { Pagination, Select, MenuItem, SelectChangeEvent, Box } from '@mui/material';
 import { ComponentProps } from 'react'; // Importa o tipo utilitário do React
 
-// CORREÇÃO: Usamos o tipo do componente GridPagination para definir nossas props
-// Isso garante que receberemos tudo o que o DataGrid nos envia.
-type CustomPaginationProps = ComponentProps<typeof GridPagination>;
+type PageSizeOption = number | { value: number; label: string };
+
+interface CustomPaginationProps {
+  pageSizeOptions?: PageSizeOption[];
+  className?: string;
+}
 
 // O nome da função agora usa nosso tipo customizado
 export default function CustomPagination(props: CustomPaginationProps) {
@@ -54,11 +57,16 @@ export default function CustomPagination(props: CustomPaginationProps) {
             '&:hover:not(.Mui-disabled):before': { border: 'none' },
           }}
         >
-          {pageSizeOptions.map((option: any) => (
-            <MenuItem key={typeof option === 'number' ? option : option.value} value={typeof option === 'number' ? option : option.value}>
-              {typeof option === 'number' ? option : option.label}
-            </MenuItem>
-          ))}
+          {pageSizeOptions.map((option) => {
+            const value = typeof option === 'number' ? option : option.value;
+            const label = typeof option === 'number' ? option : option.label;
+            
+            return (
+              <MenuItem key={value} value={value}>
+                {label}
+              </MenuItem>
+            );
+          })}
         </Select>
       </div>
 

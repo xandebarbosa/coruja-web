@@ -3,13 +3,15 @@
 import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, FormGroup, InputAdornment, Paper, Switch, TextareaAutosize, TextField, Typography } from '@mui/material'
 import { DataGrid, GridActionsCellItem, GridColDef, GridRenderCellParams, GridRowId, GridRowParams } from '@mui/x-data-grid'
 import  { ReactNode, useCallback, useEffect, useState } from 'react'
-import CustomPagination from '../components/CustomPagination'
+import CustomPagination from '../../components/CustomPagination'
 import {SearchOutlined, AddOutlined, Delete, DeleteOutlined, EditOffOutlined, EditDocument, EditNoteOutlined, VisibilityOffRounded} from '@mui/icons-material';
-import RegisterFormDialog from '../components/RegisterFormDialog';
+import RegisterFormDialog from '../../components/RegisterFormDialog';
 import { toast } from 'react-toastify';
-import { createMonitoredPlate, deleteMonitoredPlate, getMonitoredPlates, MonitoredPlate, MonitoredPlateFormData, updateMonitoredPlate } from '../services/api';
+import { createMonitoredPlate, deleteMonitoredPlate, updateMonitoredPlate } from '../../services';
+import { MonitoringService } from '../../services'
 import PreviewDialog from './components/PreviewDialog';
-import CustomNoRowsOverlay from '../components/CustomNoRowsOverlay';
+import CustomNoRowsOverlay from '../../components/CustomNoRowsOverlay';
+import { MonitoredPlate, MonitoredPlateFormData } from '@/app/types/types';
 
 export default function RegisterPage() {
     const [rows, setRows] = useState<MonitoredPlate[]>([]);
@@ -48,13 +50,13 @@ export default function RegisterPage() {
     const fetchAndSetData = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await getMonitoredPlates(
+            const data = await MonitoringService.getMonitoredPlates(
                 paginationModel.page, 
                 paginationModel.pageSize,
                 'createdAt,desc' 
             );
             setRows(data.content || []); // Garante que rows seja sempre um array
-            setRowCount(data?.page?.totalElements || 0);
+            setRowCount(data?.totalElements || 0);
         } catch (error) {
             toast.warn("Não foi possível carregar os dados. O serviço pode estar offline.");
             console.error("Erro ao buscar dados de monitoramento:", error);
