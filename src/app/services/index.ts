@@ -2,24 +2,29 @@ import { analysisService } from './analysis';
 import { logsService } from './logs';
 import { monitoringService } from './monitoring';
 import { radarsService } from './radars';
+import api from './client';
 
-export { radarsService } from '../services/radars'//'./radars.service';
-export { monitoringService } from '../services/monitoring'//'./monitoring.service';
-export { logsService } from '../services/logs'//'./logs.service';
-export { analysisService } from '../services/analysis'//'./analysis.service';
-export { default as api } from './client';
+// Re-exporta as instâncias (Permite: import { radarsService } from '@/services')
+export { 
+  radarsService,
+  monitoringService,
+  logsService,
+  analysisService,
+  api
+};
 
-// Backward compatibility - exporta as funções antigas
+// Exporta Aliases com PascalCase (Opcional, para quem prefere tratar como "Classe Estática")
 export { 
   radarsService as RadarsService,
-  monitoringService as MonitoringService,
+  monitoringService as MonitoramentoService,
   logsService as LogsService,
-  analysisService as AnalysisService
+  analysisService as IAService
 };
 
 // Re-exporta funções individuais para compatibilidade
 export const searchByPlaca = radarsService.searchByPlaca.bind(radarsService);
 export const searchByLocal = radarsService.searchByLocal.bind(radarsService);
+export const searchByGeoLocation = radarsService.searchByGeoLocation.bind(radarsService);
 export const getFilterOptions = radarsService.getFilterOptions.bind(radarsService);
 export const getKmsByRodovia = radarsService.getKmsByRodovia.bind(radarsService);
 export const getLatestRadars = radarsService.getLatestRadars.bind(radarsService);
