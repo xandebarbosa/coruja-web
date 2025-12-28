@@ -33,20 +33,20 @@ const LocationPickerMap = dynamic(() => import('../../components/LocationPickerM
 
 interface GeoSearchFormData {
   data: string;
-  horaInicial: string;
-  horaFinal: string;
+  horaInicio: string;
+  horaFim: string;
   latitude: string;
   longitude: string;
   raio: string;
 }
 
 const INITIAL_FORM_DATA: GeoSearchFormData = {
-  data: new Date().toISOString().split('T')[0],
-  horaInicial: '00:00',
-  horaFinal: '23:59',
+  data: "",//new Date().toISOString().split('T')[0],
+  horaInicio: '00:00',
+  horaFim: '23:59',
   latitude: '',
   longitude: '',
-  raio: '1000',
+  raio: '15000',
 };
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -85,6 +85,9 @@ export default function PesquisaGeoPage() {
     []
   );
 
+  // Helper para tratar inputs numéricos (troca vírgula por ponto)
+  const sanitizeValue = (val: string) => val.replace(',', '.').trim();
+
   const validateForm = (): boolean => {
     if (!formData.latitude || !formData.longitude) {
       toast.warn('Por favor, selecione um ponto no mapa ou digite as coordenadas.');
@@ -109,14 +112,23 @@ export default function PesquisaGeoPage() {
       setLoading(true);
 
       try {
-        // ✅ Correção: Chamada ao método buscarPorGeolocalizacao do RadarsService
+       // Sanitização e Formatação para envio seguro
+        const latSanitized = parseFloat(sanitizeValue(formData.latitude));
+        const lonSanitized = parseFloat(sanitizeValue(formData.longitude));
+        const raioSanitized = parseFloat(sanitizeValue(formData.raio));
+
+        // Envia com precisão controlada (6 casas) para evitar erros de ponto flutuante no backend
+        // Mas converte de volta para Number pois a interface espera number
+        const latFinal = Number(latSanitized.toFixed(6));
+        const lonFinal = Number(lonSanitized.toFixed(6));
+
         const data = await radarsService.searchByGeoLocation({
-          lat: parseFloat(formData.latitude),
-          lon: parseFloat(formData.longitude),
-          raio: parseFloat(formData.raio),
+          latitude: latFinal,
+          longitude: lonFinal,
+          raio: raioSanitized,
           data: formData.data,
-          horaInicial: formData.horaInicial,
-          horaFinal: formData.horaFinal,
+          horaInicio: formData.horaInicio,
+          horaFim: formData.horaFim,
           page: paginaAtual,
           size: DEFAULT_PAGE_SIZE,
         });
@@ -189,7 +201,7 @@ export default function PesquisaGeoPage() {
                 <input
                   type="date"
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-blue-900"
                   value={formData.data}
                   onChange={handleInputChange('data')}
                 />
@@ -200,9 +212,9 @@ export default function PesquisaGeoPage() {
                 <input
                   type="time"
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                  value={formData.horaInicial}
-                  onChange={handleInputChange('horaInicial')}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-blue-900"
+                  value={formData.horaInicio}
+                  onChange={handleInputChange('horaInicio')}
                 />
               </div>
 
@@ -211,19 +223,19 @@ export default function PesquisaGeoPage() {
                 <input
                   type="time"
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-                  value={formData.horaFinal}
-                  onChange={handleInputChange('horaFinal')}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-blue-900"
+                  value={formData.horaFim}
+                  onChange={handleInputChange('horaFim')}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Latitude *</label>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"                  
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50 p-2 border"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50 p-2 border text-blue-900"
                   value={formData.latitude}
                   onChange={handleInputChange('latitude')}
                   placeholder="-22.12345"
@@ -233,10 +245,10 @@ export default function PesquisaGeoPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700">Longitude *</label>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"                  
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50 p-2 border"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50 p-2 border text-blue-900"
                   value={formData.longitude}
                   onChange={handleInputChange('longitude')}
                   placeholder="-49.12345"

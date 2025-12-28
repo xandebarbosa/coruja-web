@@ -12,12 +12,12 @@ export interface FilterOptions {
 }
 
 export interface GeoSearchParams {
-  lat: number;
-  lon: number;
+  latitude: number;
+  longitude: number;
   raio: number;
   data: string;
-  horaInicial: string;
-  horaFinal: string;
+  horaInicio: string;
+  horaFim: string;
   page?: number;
   size?: number;
 }
@@ -55,23 +55,78 @@ class RadarsService {
   /**
    * Busca radares por geolocalização (Mapa)
    */
+  // async searchByGeoLocation(params: GeoSearchParams): Promise<PageResponse<RadarsDTO>> {
+  //  const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/geo-search', {
+  //     params: {
+  //       latitude: params.latitude,
+  //       longitude: params.longitude,
+  //       raio: params.raio,
+  //       data: params.data,
+  //       horaInicio: params.horaInicio,
+  //       horaFim: params.horaFim,
+  //       page: params.page ?? 0,
+  //       size: params.size ?? 20,
+  //     }
+  //   });
+
+  //   console.log("Busca por Geolocalização ==> ", data);
+    
+  //   return data;
+  // }
+  
   async searchByGeoLocation(params: GeoSearchParams): Promise<PageResponse<RadarsDTO>> {
-    // Monta a query string explicitamente para garantir a formatação
-    const queryParams = new URLSearchParams({
-      lat: params.lat.toString(),
-      lon: params.lon.toString(),
-      raio: params.raio.toString(),
-      data: params.data,
-      horaInicial: params.horaInicial,
-      horaFinal: params.horaFinal,
-      page: (params.page || 0).toString(),
-      size: (params.size || 20).toString(),
-    });
+    
+    // 1. LOG DOS DADOS RECEBIDOS PELO COMPONENTE
+    console.group('📡 [Service] Nova Busca por Geolocalização');
+    console.log('📥 Parâmetros brutos recebidos:', params);
 
-    const { data } = await api.get<PageResponse<RadarsDTO>>(`/radares/geo-search?${queryParams.toString()}`);
-    return data;
+    // Montando o objeto exato que será enviado ao Axios
+    const paramsEnviados = {
+        latitude: params.latitude,
+        longitude: params.longitude,
+        raio: params.raio,
+        data: params.data,
+        horaInicio: params.horaInicio, // Confirme se o backend espera 'horaInicio'
+        horaFim: params.horaFim,      // Confirme se o backend espera 'horaFim'
+        page: params.page ?? 0,
+        size: params.size ?? 20,
+    };
+
+    console.log('🚀 Payload enviado para API (/radares/geo-search):', paramsEnviados);
+
+    try {
+      const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/geo-search', {
+        params: paramsEnviados
+      });
+
+      console.log('📤 Resposta recebida da API:', data);
+      console.log('✅ [Sucesso] Dados retornados:', data);
+      console.groupEnd();
+      return data;
+
+    } catch (error: any) {
+      console.error('❌ [Erro] Falha na requisição de geolocalização');
+      
+      if (error.response) {
+        // O servidor respondeu com um status fora de 2xx (ex: 400, 500)
+        console.error('🔴 Status Code:', error.response.status);
+        console.error('🔴 Dados do Erro (Mensagem do Backend):', error.response.data);
+        console.error('🔴 Headers:', error.response.headers);
+        
+        // DICA: Muitas vezes o Spring Boot manda a explicação exata no 'error.response.data'
+        // Ex: "Required parameter 'lat' is not present"
+      } else if (error.request) {
+        // A requisição foi feita mas não houve resposta
+        console.error('⚠️ Sem resposta do servidor:', error.request);
+      } else {
+        // Erro ao configurar a requisição
+        console.error('⚠️ Erro de configuração:', error.message);
+      }
+      
+      console.groupEnd();
+      throw error;
+    }
   }
-
   /**
    * Busca opções de filtro para uma concessionária (Cacheado no BFF)
    */
@@ -122,6 +177,8 @@ class RadarsService {
         ...filters
       }
     });
+
+    console.log("Dados retornados da busca por local: ", data);
     return data;
   }
 }

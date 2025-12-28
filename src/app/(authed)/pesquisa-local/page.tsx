@@ -119,6 +119,7 @@ export default function ConsultaLocal() {
         setOptions({ ...data, kms: [] });
       } catch (error) {
         console.log(error);
+        toast.error("Não foi possível carregar as opções de filtro por concessionária.");
         alert('Não foi possível carregar as opções de filtro.');        
       } finally {
         setOptionsLoading(false);
@@ -144,6 +145,7 @@ export default function ConsultaLocal() {
                 setOptions(prev => ({ ...prev, kms: kmsData }));
             } catch (error) {
                 console.error("Erro ao buscar KMs:", error);
+                toast.error("Erro ao buscar KMs para a rodovia selecionada.");
                 setOptions(prev => ({ ...prev, kms: [] })); // Limpa em caso de erro
             } finally {
                 setKmsLoading(false);
@@ -217,11 +219,14 @@ export default function ConsultaLocal() {
 
         try {
             // Chama a API com os parâmetros limpos e corretos
-            const data = await radarsService.searchByLocal(paramsToSend);            
+            const data = await radarsService.searchByLocal(paramsToSend);     
+            console.log("Buscar por local ==> ", data);
+                   
             setRows(data.content);
             setRowCount(data.page.totalElements);
         } catch (error) {
             console.error(error);
+            toast.error("Erro ao buscar dados consulta por Local.");
             alert('Erro ao buscar dados.');
         } finally {
             setLoading(false);
