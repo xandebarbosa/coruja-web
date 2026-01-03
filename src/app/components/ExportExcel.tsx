@@ -6,22 +6,34 @@ interface DataObject {
   [key: string]: any;
 }
 
-export const exportToExcel = (data: DataObject[], fileName: string = "relatorio_radares.xlsx") => {
-  if (!data || data.length === 0) {
+export const exportToExcel = (data: any, fileName: string = "relatorio_radares.xlsx") => {
+  // 1. Proteção contra dados inválidos ou formato incorreto (Page vs Array)
+  let safeData: DataObject[] = [];
+  
+  if (Array.isArray(data)) {
+    safeData = data;
+  } else if (data && Array.isArray(data.content)) {
+    // Se por acaso passar um objeto de página, extraímos o conteúdo automaticamente
+    console.warn("ExportExcel recebeu um objeto de Página. Extraindo .content automaticamente.");
+    safeData = data.content;
+  }
+
+  // 2. Validação se está vazio
+  if (!safeData || safeData.length === 0) {
     console.error("Nenhum dado para exportar.");
     alert("Nenhum dado encontrado para exportar com os filtros selecionados.");
     return;
   }
 
-  // Prepara os dados para a primeira planilha, sem colunas de análise.
-  const mainSheetData = data.map(item => ({
-    'Data': new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR'),
-    'Hora': item.hora,
-    'Placa': item.placa,
-    'Praça/Local': item.praca,
-    'Rodovia': item.rodovia,
-    'KM': item.km,
-    'Sentido': item.sentido,
+  // Prepara os dados para a primeira planilha
+  const mainSheetData = safeData.map(item => ({
+    'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
+    'Hora': item.hora || '',
+    'Placa': item.placa || '',
+    'Praça/Local': item.praca || '',
+    'Rodovia': item.rodovia || '',
+    'KM': item.km || '',
+    'Sentido': item.sentido || '',
   }));
 
   const mainWorksheet = XLSX.utils.json_to_sheet(mainSheetData);
@@ -37,20 +49,19 @@ export const exportToExcel = (data: DataObject[], fileName: string = "relatorio_
   // ===================================================================
   // Cria uma segunda planilha que virá pré-preenchida com os dados da busca,
   // mas com a coluna de contagem pronta para se auto-calcular.
-  const comparisonSheetData = data.map((item, index) => {
+  const comparisonSheetData = safeData.map((item, index) => {
     const excelRowIndex = index + 2;
-    // A fórmula agora conta as ocorrências da placa (coluna C) DENTRO DESTA MESMA PLANILHA
     const formula = `=COUNTIF(C:C, C${excelRowIndex})`;
 
     return {
-      'Data': new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR'),
+      'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
       'Hora': item.hora,
       'Placa': item.placa,
       'Praça/Local': item.praca,
       'Rodovia': item.rodovia,
       'KM': item.km,
       'Sentido': item.sentido,
-      'Repetidos': { f: formula }, // A fórmula fica nesta planilha
+      'Repetidos': { f: formula },
     };
   });
 
@@ -70,6 +81,10 @@ export const exportToExcel = (data: DataObject[], fileName: string = "relatorio_
   
   const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+  
+  // Sanitiza nome do arquivo
+  const safeFileName = fileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   const date = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-  saveAs(blob, `${fileName}_${date}.xlsx`);
+  
+  saveAs(blob, `${safeFileName}_${date}.xlsx`);
 };

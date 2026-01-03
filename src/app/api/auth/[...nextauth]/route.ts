@@ -30,6 +30,10 @@ export const authOptions: AuthOptions = {
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
       issuer: process.env.KEYCLOAK_ISSUER!,
+      // ADICIONE ESTE BLOCO PARA AUMENTAR O TIMEOUT
+      httpOptions: {
+        timeout: 30000, // 30 segundos (padrão é 3500ms)
+      },
 
       // --- CORREÇÃO: FORÇA AS URLS DE AUTORIZAÇÃO E TOKEN EXTERNAS ---
       authorization: {

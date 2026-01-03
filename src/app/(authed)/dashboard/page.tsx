@@ -7,6 +7,10 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import BusinessIcon from '@mui/icons-material/Business';
 import SignpostIcon from '@mui/icons-material/Signpost';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import SignalCellularAltIcon from '@mui/icons-material/SignalCellularAlt';
 import PlacaMercosul from '../../components/PlacaMercosul';
 import { RadarsService } from '../../services';
 import SockJS from 'sockjs-client';
@@ -193,93 +197,220 @@ export default function Dashboard() {
   }
   // --- Fim da Lógica de Proteção ---
 
-  // Se chegou aqui, status === 'authenticated', então renderiza a página
+  // Se chegou aqui, status === 'authenticated', então renderiza a página 
 
   return (
-    <div className='p-4'>
-      <Card className='mb-4'>
-        <CardContent>
-          <Typography variant="h4" className="text-3xl font-roboto font-black text-gray-800">Dashboard</Typography>
-          {/* Indicadores de status */}
-          <Box className="flex gap-2 mt-2">
-            <Typography variant="caption" className={isConnected ? 'text-green-600' : 'text-red-600'}>
-              {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
-            </Typography>
-            {isSubscribed && (
-              <Typography variant="caption" className="text-blue-600">
-                📡 Recebendo eventos
-              </Typography>
-            )}
-          </Box>
+    <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6'>
+      {/* Header Card */}
+      <Card 
+        className='mb-6 overflow-hidden'
+        sx={{
+          background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
+        }}
+      >
+        <CardContent className='py-8'>          
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-4'>
+              <div className='bg-white/10 p-3 rounded-xl backdrop-blur-sm'>
+                <DashboardIcon sx={{ fontSize: 40, color: '#fca311' }} />
+              </div>
+              <div>
+                <Typography 
+                  variant="h4" 
+                  className="font-bold text-white mb-1"
+                  sx={{ letterSpacing: '-0.5px'}}
+                >
+                  Dashboard
+                </Typography>
+                <Typography variant="body2" className="text-gray-300">
+                  Monitoramento em tempo real
+                </Typography>
+              </div>
+            </div>
+            
+            {/* Status Indicators */}
+            <div className='flex flex-col gap-2 items-end'>
+              <div className='flex items-center gap-3'>
+                {isConnected ? (
+                  <Chip
+                    icon={<WifiIcon sx={{ color: 'white !important' }} />}
+                    label="Conectado"
+                    size="small"
+                    sx={{
+                      bgcolor: '#059669',
+                      color: 'white',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      '& .MuiChip-icon': {
+                        color: 'white',
+                      },
+                    }}
+                  />
+                ) : (
+                  <Chip
+                    icon={<WifiOffIcon sx={{ color: 'white !important' }} />}
+                    label="Desconectado"
+                    size="small"
+                    sx={{
+                      bgcolor: '#ef4444',
+                      color: 'white',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      '& .MuiChip-icon': {
+                        color: 'white',
+                      },
+                    }}
+                  />
+                )}
+                
+                {isSubscribed && (
+                  <Chip
+                    icon={<SignalCellularAltIcon sx={{ color: 'white !important' }} />}
+                    label="Recebendo eventos"
+                    size="small"
+                    sx={{
+                      bgcolor: '#3b82f6',
+                      color: 'white',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      '& .MuiChip-icon': {
+                        color: 'white',
+                      },
+                    }}
+                  />
+                )}
+              </div>
 
-          {/* Erro de conexão */}
-          {connectionError && (
-            <Typography variant="body2" className="text-red-600 mt-2">
-              ⚠️ {connectionError}
-            </Typography>
-          )}
+              {connectionError && (
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#fca311',
+                    bgcolor: 'rgba(252, 163, 17, 0.1)',
+                    padding: '4px 12px',
+                    borderRadius: '6px',
+                    fontWeight: 500,
+                  }}
+                >
+                  ⚠️ {connectionError}
+                </Typography>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
       
+      {/* Loading State */}
       {isLoading ? (
-        <Box className="flex justify-center p-8"><CircularProgress color="warning" /></Box>
+        <Box className="flex flex-col items-center justify-center p-12">
+          <CircularProgress 
+            size={60}
+            sx={{ 
+              color: '#fca311',
+              marginBottom: 2,
+            }} 
+          />
+          <Typography variant="body1" className="text-gray-600 font-medium">
+            Carregando dados dos radares...
+          </Typography>
+        </Box>
       ) : (
-        <Grid container spacing={4}>
+        <Grid container spacing={3}>
           {/* Mapeia os valores do objeto de radares e ordena por nome da concessionária */}
           {Object.values(lastRadars)
             .sort((a, b) => a.concessionaria.localeCompare(b.concessionaria))
             .map((radar) => (
-            <Grid size={{ xs: 12, md: 6 }} key={radar.concessionaria}>
-              <Paper elevation={3} className="p-6 rounded-lg h-full flex flex-col">
-                <Typography variant="h6" component="h2" className="font-semibold text-gray-700 mb-4 flex items-center">
-                  <BusinessIcon className="text-orange-500 mr-2" />
-                  Último Radar - 
-                  <Chip label={radar.concessionaria.toUpperCase()} color="primary" size="small" className="bg-orange-600 font-semibold ml-2" />
-                </Typography>
-                
-                <Grid container spacing={3} className="flex-grow">              
-
-                  <Grid size={{ xs: 12, md: 6 }} className="flex items-center">
-                    <Box>
-                      <Typography variant="body2" className="text-gray-500">
-                          <DirectionsCarIcon className="text-gray-600 mr-1 mb-1"/>
-                          Placa
-                      </Typography>                                           
-                      <PlacaMercosul placa={radar.placa} />
-                    </Box>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, md: 6 }} className="flex flex-col justify-center space-y-4">
-                    <Box>
-                      <CalendarTodayIcon className="text-gray-600" />
+            <Grid size={{ xs: 12, lg: 6 }} key={radar.concessionaria}>
+              <Card 
+                elevation={0}
+                className="h-full transition-all duration-300 hover:shadow-xl"
+                sx={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Card Header */}
+                <Box 
+                  sx={{
+                    background: 'linear-gradient(135deg, #fca311 0%, #e09200 100%)',
+                    padding: '16px 24px',
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                        <BusinessIcon sx={{ color: 'white', fontSize: 24 }} />
+                      </div>
                       <div>
-                        <Typography variant="body2" className="text-gray-500">Data e Hora</Typography>
-                        <Typography variant="subtitle1" component="p" className="font-mono">
-                          {formatDateTime(radar.data, radar.hora)}
+                        <Typography variant="caption" className="text-white/80 uppercase tracking-wide font-medium">
+                          Último Radar
+                        </Typography>
+                        <Typography variant="h6" className="text-white font-bold">
+                          {radar.concessionaria.toUpperCase()}
                         </Typography>
                       </div>
-                      
-                    </Box>
+                    </div>
+                  </div>
+                </Box>
 
-                    <Box>
-                      <SignpostIcon className="text-gray-600" />
-                      <Typography variant="body2" className="text-gray-500">Localização</Typography>
-                      <Typography variant="subtitle1" component="p">
-                        {radar.rodovia} {radar.km !== 'N/A' && `KM ${radar.km}`}
-                      </Typography>
-                      <Typography variant="caption" className="text-gray-600">
-                        {radar.praca} ({radar.sentido})
-                      </Typography>
-                    </Box>
+                {/* Card Content */}
+                <CardContent sx={{ padding: '24px' }}>
+                  <Grid container spacing={3}>              
+                    {/* Placa Section */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Box className="bg-gray-50 rounded-lg p-4 h-full flex flex-col justify-center items-center">
+                        <div className="flex items-center gap-2 mb-3">
+                          <DirectionsCarIcon sx={{ color: '#6b7280', fontSize: 20 }} />
+                          <Typography variant="body2" className="text-gray-600 font-medium">
+                            Placa
+                          </Typography>
+                        </div>
+                        <PlacaMercosul placa={radar.placa} />
+                      </Box>
+                    </Grid>
+
+                    {/* Info Section */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <div className="flex flex-col gap-4">
+                        {/* Data e Hora */}
+                        <Box className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CalendarTodayIcon sx={{ color: '#fca311', fontSize: 18 }} />
+                            <Typography variant="caption" className="text-gray-600 font-medium uppercase tracking-wide">
+                              Data e Hora
+                            </Typography>
+                          </div>
+                          <Typography variant="body1" className="font-mono font-semibold text-gray-800">
+                            {formatDateTime(radar.data, radar.hora)}
+                          </Typography>
+                        </Box>
+
+                        {/* Localização */}
+                        <Box className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <SignpostIcon sx={{ color: '#fca311', fontSize: 18 }} />
+                            <Typography variant="caption" className="text-gray-600 font-medium uppercase tracking-wide">
+                              Localização
+                            </Typography>
+                          </div>
+                          <Typography variant="body1" className="font-semibold text-gray-800">
+                            {radar.rodovia} {radar.km !== 'N/A' && `KM ${radar.km}`}
+                          </Typography>
+                          <Typography variant="caption" className="text-gray-600 mt-1 block">
+                            {radar.praca} • {radar.sentido}
+                          </Typography>
+                        </Box>
+                      </div>
+                    </Grid>
                   </Grid>
-
-                </Grid>
-              </Paper>
+                </CardContent>
+              </Card>
             </Grid>
           ))}
         </Grid>
       )}
     </div>
-
-  );  
+  );
 }

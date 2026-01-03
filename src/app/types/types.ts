@@ -6,6 +6,7 @@ export interface RadarsDTO {
     data?: Date;
     hora: Date;
     placa: string;
+    praca?: string;
 }
 
 export interface LocalSearchParams {
@@ -70,6 +71,16 @@ export interface AlertHistoryRow {
     motivo: string;
     interessado: string;
   };
+}
+
+export interface RadarLocationDTO {
+  id: number | string;
+  concessionaria: string;    
+  rodovia?: string;
+  km?: string;
+  praca?: string;
+  latitude: number;
+  longitude: number;
 }
 
 // Define o tipo para os dados do formulário (sem o ID, que é gerado no backend)

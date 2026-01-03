@@ -1,6 +1,6 @@
-import { searchByLocal } from './index';
+import { searchByLocal, searchByPlaca } from './index';
 import { PageResponse } from "@/model/response/PageResponse";
-import { LocalSearchParams, RadarsDTO } from "../types/types";
+import { LocalSearchParams, RadarLocationDTO, RadarsDTO } from "../types/types";
 import api from "./client";
 
 // Interfaces locais para parâmetros específicos deste serviço
@@ -155,8 +155,31 @@ class RadarsService {
   }
 
   async searchAllByLocalForExport(params: any): Promise<RadarsDTO[]> {
-    const { data } = await api.get<RadarsDTO[]>('/radares/exportar', { params });
-    return data;
+    const paramsExport = { ...params, page: 0, size: 100000 };
+    const { data } = await api.get<any>('/radares/exportar', { params: paramsExport });
+    
+    if (data && Array.isArray(data.content)) {
+        return data.content;
+    } else if (Array.isArray(data)) {
+        return data;
+    }
+    return [];
+  }
+
+  async searchByPlacaExport(params: any): Promise<RadarsDTO[]> {
+    // Força size grande para pegar tudo, já que o endpoint é paginado
+    const paramsExport = { ...params, page: 0, size: 100000 };
+
+    // CORREÇÃO: Usamos <any> aqui para o TypeScript não reclamar ao acessar .content
+    const { data } = await api.get<any>('/radares/exportar', { params: paramsExport });
+    
+    // Tratamento de robustez: Extrai .content se for uma Page, ou retorna o próprio array
+    if (data && Array.isArray(data.content)) {
+        return data.content;
+    } else if (Array.isArray(data)) {
+        return data;
+    }
+    return []; // Retorna array vazio em caso de erro ou resposta inesperada
   }
   
   // Mantido para compatibilidade, se ainda usado
@@ -180,6 +203,11 @@ class RadarsService {
 
     console.log("Dados retornados da busca por local: ", data);
     return data;
+  }
+
+  async getRadarLocations(): Promise<RadarLocationDTO[]> {
+    const response = await api.get<RadarLocationDTO[]>('/radares/all-locations');
+    return response.data;
   }
 }
 
