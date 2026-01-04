@@ -90,3 +90,34 @@ export interface PaginatedAlertHistory {
   content: AlertHistoryRow[];
   page: PageMetadata;
 }
+
+export interface GeoSearchParams {
+  latitude: number;
+  longitude: number;
+  raio: number;
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+export interface GeoSearchResponse {
+  content: RadarsDTO[];
+  page: {
+    size: number;
+    number: number;
+    totalElements: number;
+    totalPages: number;
+  };
+}
+
+export interface GeoSearchFormData {
+  data: string;
+  horaInicio: string;
+  horaFim: string;
+  latitude: string;
+  longitude: string;
+  raio: string;
+}

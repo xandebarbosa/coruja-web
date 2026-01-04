@@ -1,6 +1,6 @@
 import { searchByLocal, searchByPlaca } from './index';
 import { PageResponse } from "@/model/response/PageResponse";
-import { LocalSearchParams, RadarLocationDTO, RadarsDTO } from "../types/types";
+import { GeoSearchParams, GeoSearchResponse, LocalSearchParams, RadarLocationDTO, RadarsDTO } from "../types/types";
 import api from "./client";
 
 // Interfaces locais para parâmetros específicos deste serviço
@@ -9,17 +9,6 @@ export interface FilterOptions {
   pracas: string[];
   kms: string[];
   sentidos: string[];
-}
-
-export interface GeoSearchParams {
-  latitude: number;
-  longitude: number;
-  raio: number;
-  data: string;
-  horaInicio: string;
-  horaFim: string;
-  page?: number;
-  size?: number;
 }
 
 export interface RadarEvent {
@@ -74,59 +63,87 @@ class RadarsService {
   //   return data;
   // }
   
-  async searchByGeoLocation(params: GeoSearchParams): Promise<PageResponse<RadarsDTO>> {
-    
-    // 1. LOG DOS DADOS RECEBIDOS PELO COMPONENTE
-    console.group('📡 [Service] Nova Busca por Geolocalização');
-    console.log('📥 Parâmetros brutos recebidos:', params);
+  async searchByGeoLocation(params: GeoSearchParams): Promise<GeoSearchResponse> {
+  console.group('📡 [Service] Nova Busca por Geolocalização');
+  console.log('📥 Parâmetros brutos recebidos:', params);
 
-    // Montando o objeto exato que será enviado ao Axios
+  const paramsEnviados = {
+    latitude: params.latitude,
+    longitude: params.longitude,
+    raio: params.raio,
+    data: params.data,
+    horaInicio: params.horaInicio,
+    horaFim: params.horaFim,
+    page: params.page ?? 0,
+    size: params.size ?? 20,
+  };
+
+  console.log('🚀 Payload enviado para API (/radares/geo-search):', paramsEnviados);
+
+  try {
+    const { data } = await api.get<GeoSearchResponse>('/radares/geo-search', {
+      params: paramsEnviados
+    });
+
+    console.log('📤 Resposta recebida da API:', data);
+    console.log('✅ [Sucesso] Total de elementos:', data.page?.totalElements);
+    console.log('✅ [Sucesso] Página atual:', data.page?.number);
+    console.groupEnd();
+    
+    return data;
+
+  } catch (error: any) {
+    console.error('❌ [Erro] Falha na requisição de geolocalização');
+    
+    if (error.response) {
+      console.error('🔴 Status Code:', error.response.status);
+      console.error('🔴 Dados do Erro:', error.response.data);
+      console.error('🔴 Headers:', error.response.headers);
+    } else if (error.request) {
+      console.error('⚠️ Sem resposta do servidor:', error.request);
+    } else {
+      console.error('⚠️ Erro de configuração:', error.message);
+    }
+    
+    console.groupEnd();
+    throw error;
+  }
+}
+
+/**
+   * NOVO: Busca TODOS os dados por geolocalização para Exportação Excel
+   * Chama o endpoint específico /radares/geo-exportar
+   */
+  async searchAllByGeoLocationForExport(params: Omit<GeoSearchParams, 'page' | 'size'>): Promise<RadarsDTO[]> {
+    console.group('📡 [Service] Exportação Excel por Geolocalização');
+    console.log('📥 Parâmetros Export:', params);
+
     const paramsEnviados = {
         latitude: params.latitude,
         longitude: params.longitude,
         raio: params.raio,
         data: params.data,
-        horaInicio: params.horaInicio, // Confirme se o backend espera 'horaInicio'
-        horaFim: params.horaFim,      // Confirme se o backend espera 'horaFim'
-        page: params.page ?? 0,
-        size: params.size ?? 20,
+        horaInicio: params.horaInicio,
+        horaFim: params.horaFim
     };
 
-    console.log('🚀 Payload enviado para API (/radares/geo-search):', paramsEnviados);
-
     try {
-      const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/geo-search', {
+      // Nota: O endpoint /radares/geo-exportar retorna uma List<RadarDTO> direta, não paginada
+      const { data } = await api.get<RadarsDTO[]>('/radares/geo-exportar', {
         params: paramsEnviados
       });
 
-      console.log('📤 Resposta recebida da API:', data);
-      console.log('✅ [Sucesso] Dados retornados:', data);
+      console.log(`✅ [Sucesso] ${data?.length || 0} registros recuperados para exportação.`);
       console.groupEnd();
-      return data;
-
-    } catch (error: any) {
-      console.error('❌ [Erro] Falha na requisição de geolocalização');
       
-      if (error.response) {
-        // O servidor respondeu com um status fora de 2xx (ex: 400, 500)
-        console.error('🔴 Status Code:', error.response.status);
-        console.error('🔴 Dados do Erro (Mensagem do Backend):', error.response.data);
-        console.error('🔴 Headers:', error.response.headers);
-        
-        // DICA: Muitas vezes o Spring Boot manda a explicação exata no 'error.response.data'
-        // Ex: "Required parameter 'lat' is not present"
-      } else if (error.request) {
-        // A requisição foi feita mas não houve resposta
-        console.error('⚠️ Sem resposta do servidor:', error.request);
-      } else {
-        // Erro ao configurar a requisição
-        console.error('⚠️ Erro de configuração:', error.message);
-      }
-      
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('❌ [Erro] Falha na exportação Geo:', error);
       console.groupEnd();
-      throw error;
+      return [];
     }
   }
+
   /**
    * Busca opções de filtro para uma concessionária (Cacheado no BFF)
    */

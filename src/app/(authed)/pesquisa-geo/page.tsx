@@ -2,25 +2,16 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Search, MapPin, TrendingUp, Crosshair, Clock, Calendar, RefreshCw } from 'lucide-react';
+import { Search, MapPin, Crosshair, Clock, Calendar, RefreshCw } from 'lucide-react';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import { toast } from 'react-toastify';
-
-// Importações de Serviços e Tipos
 import { radarsService } from '../../services';
-import { RadarLocationDTO, RadarsDTO } from '../../types/types';
-import { PageResponse } from '@/model/response/PageResponse';
-
-// Importações de Componentes
-import DetailsTable from '../../components/DetailsTable';
-import CustomPagination from '../../components/CustomPagination';
-import { Box, Card, CardContent, Chip, Pagination, Stack } from '@mui/material';
-import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
-import CustomNoRowsOverlay from './componentes/CustomNoRowsOverlay';
-import { set } from 'react-hook-form';
+import { GeoSearchFormData, RadarLocationDTO, RadarsDTO } from '../../types/types';
+import { Card, CardContent, Box } from '@mui/material';
+import { GridPaginationModel } from '@mui/x-data-grid';
 import GeoResultsGrid from './componentes/GeoResultsGrid';
-
-
+import { exportToExcel } from '@/app/components/ExportExcel';
+import { log } from 'console';
 
 // Importação dinâmica do mapa (desativa SSR)
 const LocationPickerMap = dynamic(() => import('../../components/LocationPickerMap'), {
@@ -35,21 +26,8 @@ const LocationPickerMap = dynamic(() => import('../../components/LocationPickerM
   ),
 });
 
-// =============================================
-// Tipos e Interfaces
-// =============================================
-
-interface GeoSearchFormData {
-  data: string;
-  horaInicio: string;
-  horaFim: string;
-  latitude: string;
-  longitude: string;
-  raio: string;
-}
-
 const INITIAL_FORM_DATA: GeoSearchFormData = {
-  data: "",//new Date().toISOString().split('T')[0],
+  data: "",
   horaInicio: '00:00',
   horaFim: '23:59',
   latitude: '',
@@ -59,29 +37,29 @@ const INITIAL_FORM_DATA: GeoSearchFormData = {
 
 const DEFAULT_PAGE_SIZE = 10;
 
-
 export default function PesquisaGeoPage() {
-  // 1. Estado do Formulário (O que o usuário digita)
+  // Estados do Formulário
   const [formData, setFormData] = useState<GeoSearchFormData>(INITIAL_FORM_DATA);
 
-  // 2. Estado da Busca Ativa (O que está valendo na Grid)
-  // Isso separa o que está digitado do que foi realmente pesquisado
+  // 2. Estado da Busca Executada (Congela os filtros usados na última busca válida)
+  const [executedSearch, setExecutedSearch] = useState<GeoSearchFormData | null>(null);
+  
+  // Estado da Busca Ativa (snapshot dos filtros que estão sendo usados)
   const [activeParams, setActiveParams] = useState<GeoSearchFormData | null>(null);
 
-  // 3. Estados da Grid
+  // Estados da Grid
   const [rows, setRows] = useState<RadarsDTO[]>([]);
   const [rowCount, setRowCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  // 4. Paginação
+  // Paginação
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   });
-  // Novo estado para controlar se já houve busca
+  
   const [hasSearched, setHasSearched] = useState(false);
-  // --- NOVO: Estado para armazenar os pontos de radar no mapa ---
   const [radarLocations, setRadarLocations] = useState<RadarLocationDTO[]>([]);
 
   // Carregar pontos do mapa ao iniciar
@@ -101,7 +79,7 @@ export default function PesquisaGeoPage() {
   const sanitizeValue = (val: string) => val.replace(',', '.').trim();
 
   const handleInputChange = (field: keyof GeoSearchFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
   const handleLocationSelect = useCallback((lat: number, lng: number) => {
@@ -128,128 +106,205 @@ export default function PesquisaGeoPage() {
       toast.warn('⚠️ O raio deve ser um número positivo.');
       return false;
     }
+    
+    // Validação das horas
+    if (data.horaInicio && data.horaFim) {
+      if (data.horaInicio > data.horaFim) {
+        toast.warn('⚠️ A hora inicial não pode ser maior que a hora final.');
+        return false;
+      }
+    }
+    
     return true;
   };
 
   // =========================================================
-  // LÓGICA DE BUSCA E PAGINAÇÃO REFATORADA
+  // FUNÇÃO DE BUSCA CORRIGIDA
   // =========================================================
-
-  // Função pura de busca que recebe parâmetros
-  const fetchRadarsData = async (params: GeoSearchFormData, page: number, size: number) => {
+  const fetchRadarsData = useCallback(async (params: GeoSearchFormData, page: number, pageSize: number) => {
     setLoading(true);
+    
     try {
-      const latFinal = Number(parseFloat(sanitizeValue(params.latitude)).toFixed(6));
-      const lonFinal = Number(parseFloat(sanitizeValue(params.longitude)).toFixed(6));
-      const raioSanitized = parseFloat(sanitizeValue(params.raio));
+        // 1. Prepara o Payload
+        const payload = {
+            latitude: Number(params.latitude.replace(',', '.')),
+            longitude: Number(params.longitude.replace(',', '.')),
+            raio: Number(params.raio),
+            data: params.data,
+            horaInicio: params.horaInicio,
+            horaFim: params.horaFim,
+            page: page,      // O backend espera índice 0 (conforme seu JSON "number": 0)
+            size: pageSize,   // O backend espera "size": 10            
+        };
 
-      // Chama o serviço
-      const data = await radarsService.searchByGeoLocation({
-        latitude: latFinal,
-        longitude: lonFinal,
-        raio: raioSanitized,
-        data: params.data,
-        horaInicio: params.horaInicio,
-        horaFim: params.horaFim,
-        page: page, // Backend Spring geralmente é 0-based, igual MUI DataGrid
-        size: size,
-      });
+        console.log("🚀 Enviando requisição:", payload);
 
-      console.log("Resposta da API:", data);
+        // 2. Chamada ao Serviço
+        // Importante: Verifique se o seu service retorna o objeto completo ou apenas o data do axios
+        const response = await radarsService.searchByGeoLocation(payload);
 
-      // Tratamento de vazios e atualização de estado
-      if (data && data.content) {
-          setRows(data.content);
-          setRowCount(data.totalElements);
-          
-          if (page === 0) {
-             if (data.totalElements === 0) toast.info('ℹ️ Nenhum veículo encontrado.');
-             else toast.success(`✅ ${data.totalElements} registro(s) encontrado(s)!`);
-          }
-      } else {
-          // Fallback caso a API retorne algo inesperado
-          setRows([]);
-          setRowCount(0);
-          if (page === 0) toast.info('ℹ️ Nenhum veículo encontrado (Resposta vazia).');
-      }
+        console.log("📦 Resposta recebida:", response);
+
+        // 3. Mapeamento CORRIGIDO baseado no seu JSON
+        // O array de dados está em 'content'
+        const listaVeiculos = response.content || [];
+
+        // --- CORREÇÃO DE ORDENAÇÃO (Menor Horário -> Maior Horário) ---
+        // Ordenamos o array recebido antes de exibir na tela
+        listaVeiculos.sort((a: RadarsDTO, b: RadarsDTO) => {
+            // Combina Data + Hora para garantir ordenação correta
+            const timeA = `${a.data}T${a.hora}`;
+            const timeB = `${b.data}T${b.hora}`;
+            return timeA.localeCompare(timeB);
+        });
+        
+        // O segredo está aqui: ler o total de dentro de 'page'
+        // Se response.page existir, pega totalElements, senão 0.
+        const totalRegistros = response.page?.totalElements || 0;
+
+        // 4. Atualiza os estados
+        setRows(listaVeiculos);
+        setRowCount(totalRegistros);
+
+        // 5. Feedback visual (apenas na busca inicial)
+        if (page === 0) {
+             if (listaVeiculos.length === 0) {
+                 toast.info('Nenhum registro encontrado.');
+             } else {
+                 toast.success(`✅ ${totalRegistros} registros encontrados.`);
+             }
+        }
 
     } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-      toast.error('❌ Erro ao buscar dados. Verifique o console.');
-      setRows([]);
-      setRowCount(0);
+        console.error("❌ Erro na busca:", error);
+        toast.error('Erro ao buscar dados.');
+        setRows([]);
+        setRowCount(0);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+  }, []);
 
-  // Efeito principal: Dispara a busca quando activeParams ou paginação mudam
+  // =========================================================
+  // EFFECT PARA PAGINAÇÃO - CORRIGIDO
+  // =========================================================
   useEffect(() => {
-    // Só busca se tiver parâmetros ativos (usuário clicou em buscar)
+    // Só busca se tiver parâmetros ativos
     if (activeParams) {
+      console.log('🔄 Mudança detectada - Buscando página:', paginationModel.page);
       fetchRadarsData(activeParams, paginationModel.page, paginationModel.pageSize);
     }
-  }, [activeParams, paginationModel]);
+  }, [activeParams, paginationModel, fetchRadarsData]);
 
-  // Handler do Botão BUSCAR
+  // =========================================================
+  // HANDLER DO BOTÃO BUSCAR - CORRIGIDO
+  // =========================================================
   const handleSearchClick = (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!validateForm(formData)) return;
 
-    // 1. Reseta a página para 0 sempre que uma NOVA busca é feita (importante!)
+    console.log('🔍 Nova busca iniciada com filtros:', formData);
+
+    // 1. Reseta a página para 0 (importante!)
     setPaginationModel(prev => ({ ...prev, page: 0 }));
 
-    // 2. Define os parâmetros ativos. Isso vai disparar o useEffect acima.
-    // Usamos o spread para garantir uma nova referência de objeto e disparar o efeito
+    // 2. Define os parâmetros ativos (dispara o useEffect)
     setActiveParams({ ...formData });
+    
+    // 3. Marca que houve busca
+    setHasSearched(true);
   };
 
+  // =========================================================
+  // HANDLER DE EXPORTAÇÃO - CORRIGIDO
+  // =========================================================
   // Handler de Exportação Refatorado
   const handleExport = useCallback(async () => {
-    // Usa activeParams para garantir que exportamos o que está na tela, não o que está no form
-    if (!activeParams) {
-      toast.warn('⚠️ Realize uma busca antes de exportar.');
+    // 1. Usa activeParams para consistência (o que está na tela), 
+    // ou formData se o usuário quiser exportar sem ter clicado em "Buscar" antes (fallback)
+    const paramsToUse = activeParams || formData;
+
+    // Validação básica antes de chamar o serviço
+    if (!paramsToUse.latitude || !paramsToUse.longitude || !paramsToUse.raio) {
+      toast.warn('⚠️ Parâmetros de localização incompletos para exportação.');
       return;
     }
 
     setExporting(true);
     try {
-      const latFinal = Number(parseFloat(sanitizeValue(activeParams.latitude)).toFixed(6));
-      const lonFinal = Number(parseFloat(sanitizeValue(activeParams.longitude)).toFixed(6));
-      const raioSanitized = parseFloat(sanitizeValue(activeParams.raio));
+      // Prepara os parâmetros (Sanitização)
+      const latFinal = Number(parseFloat(sanitizeValue(paramsToUse.latitude)).toFixed(6));
+      const lonFinal = Number(parseFloat(sanitizeValue(paramsToUse.longitude)).toFixed(6));
+      const raioSanitized = parseFloat(sanitizeValue(paramsToUse.raio));
 
       const paramsExport = {
         latitude: latFinal,
         longitude: lonFinal,
         raio: raioSanitized,
-        data: activeParams.data,
-        horaInicio: activeParams.horaInicio,
-        horaFim: activeParams.horaFim,
+        data: paramsToUse.data,
+        horaInicio: paramsToUse.horaInicio,
+        horaFim: paramsToUse.horaFim,
       };
 
-      await radarsService.searchAllByLocalForExport(paramsExport);
-      toast.success("Arquivo gerado com sucesso! Verifique seus downloads.");
+      // 2. Busca TODOS os dados para exportação
+      // NOTA: Verifique se o seu 'radarsService' possui um método que retorna a LISTA de dados (Array)
+      // para Geo, similar ao 'searchAllByLocalForExport'.
+      // Abaixo estou chamando de 'searchAllByGeoLocationForExport' como sugestão.
+      const allData = await radarsService.searchAllByGeoLocationForExport(paramsExport);
+
+      // 3. Validação se retornou dados
+      if (!allData || allData.length === 0) {
+        toast.warn("Nenhum registro encontrado para exportar com os filtros selecionados.");
+        return;
+      }
+
+      // 4. Gera o Excel no Frontend (Padrão do ConsultaLocal)
+      exportToExcel(allData, "Relatorio_Geolocalizacao");
+      toast.success("Relatório exportado com sucesso!");
+
     } catch (error) {
-      console.error(error);
-      toast.error('❌ Erro ao exportar. Tente novamente.');
+      console.error("Erro na exportação:", error);
+      toast.error('❌ Erro ao exportar o relatório. Tente novamente.');
     } finally {
       setExporting(false);
     }
-  }, [activeParams]);
+  }, [activeParams, formData]); // Adicionado formData nas dependências para o fallback funcionar
 
+  // =========================================================
+  // HANDLER DE RESET
+  // =========================================================
   const handleReset = () => {
     setFormData(INITIAL_FORM_DATA);
-    setActiveParams(null); // Desativa a busca
+    setActiveParams(null);
     setRows([]);
     setRowCount(0);
+    setHasSearched(false);
     setPaginationModel({ page: 0, pageSize: DEFAULT_PAGE_SIZE });
     toast.info('🔄 Filtros limpos.');
   };
 
+  // FUNÇÃO AUXILIAR para preparar os dados para o mapa
+  const getSearchLocationForMap = () => {
+    // Só mostra o marcador de busca se tivermos parâmetros ATIVOS (busca realizada)
+    if (!activeParams?.latitude || !activeParams?.longitude) return null;
+
+    const lat = parseFloat(activeParams.latitude.replace(',', '.'));
+    const lng = parseFloat(activeParams.longitude.replace(',', '.'));
+    
+    if (isNaN(lat) || isNaN(lng)) return null;
+
+    return { lat, lng };
+  };
+
+  const getSearchRadiusForMap = () => {
+    if (!activeParams?.raio) return 0;
+    return parseFloat(activeParams.raio.replace(',', '.'));
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-[#fef3e2]/30 to-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div >
-        
+      <div>
         {/* Header */}
         <div className="mb-8 animate-fade-in">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -279,7 +334,6 @@ export default function PesquisaGeoPage() {
 
         {/* Grid Principal */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-          
           {/* Formulário */}
           <div className="lg:col-span-5">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 hover:shadow-2xl transition-shadow duration-300">
@@ -289,11 +343,9 @@ export default function PesquisaGeoPage() {
               </div>
               
               <form onSubmit={handleSearchClick} className="space-y-4">
-                
                 {/* Data */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
                     <Calendar size={16} className="text-[#fca311]" />
                     Data *
                   </label>
@@ -304,8 +356,10 @@ export default function PesquisaGeoPage() {
                     value={formData.data}
                     onChange={handleInputChange('data')}
                   />
-                  </div>
+                </div>
 
+                {/* Horas */}
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
                       <Clock size={16} className="text-[#fca311]" />
@@ -333,10 +387,7 @@ export default function PesquisaGeoPage() {
                       onChange={handleInputChange('horaFim')}
                     />
                   </div>
-                  
                 </div>
-
-                
 
                 {/* Coordenadas */}
                 <div className="grid grid-cols-2 gap-4">
@@ -426,7 +477,12 @@ export default function PesquisaGeoPage() {
               </div>
               
               <div className="rounded-2xl overflow-hidden">
-                <LocationPickerMap onLocationSelect={handleLocationSelect} radarPoints={radarLocations} />
+                <LocationPickerMap 
+                  onLocationSelect={handleLocationSelect} 
+                  radarPoints={radarLocations}  // <--- ESSENCIAL PARA OS PONTOS APARECEREM
+                  searchLocation={getSearchLocationForMap()}
+                  searchRadius={getSearchRadiusForMap()}
+                />
               </div>
               
               <p className="text-center text-sm text-gray-500 mt-4 flex items-center justify-center gap-2">
@@ -439,19 +495,19 @@ export default function PesquisaGeoPage() {
 
         {/* Resultados */}
         <Card className="shadow-lg overflow-hidden">
-        <CardContent className="p-0">
-          <GeoResultsGrid
-            rows={rows}
-            rowCount={rowCount}
-            loading={loading}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            onExportCSV={handleExport}
-            hasSearched={!!activeParams} // Converte objeto para boolean (null = false)
-            isExporting={exporting}
-          />
-        </CardContent>
-      </Card>
+          <CardContent className="p-0">
+            <GeoResultsGrid
+              rows={rows}
+              rowCount={rowCount}
+              loading={loading}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              onExportCSV={handleExport}
+              hasSearched={hasSearched}
+              isExporting={exporting}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <style jsx>{`
@@ -470,7 +526,6 @@ export default function PesquisaGeoPage() {
           animation: fade-in 0.6s ease-out;
         }
       `}</style>
-      
     </div>
   );
 }
