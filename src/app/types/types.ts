@@ -40,6 +40,7 @@ export interface MonitoredPlate {
   statusAtivo?: boolean;
   observacao?: string;
   interessado?: string;
+  telefone?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }

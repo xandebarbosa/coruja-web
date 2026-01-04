@@ -5,10 +5,10 @@ import { DataGrid, GridActionsCellItem, GridColDef, GridRenderCellParams, GridRo
 import  { ReactNode, useCallback, useEffect, useState } from 'react'
 import CustomPagination from '../../components/CustomPagination'
 import {SearchOutlined, AddOutlined, Delete, DeleteOutlined, EditOffOutlined, EditDocument, EditNoteOutlined, VisibilityOffRounded} from '@mui/icons-material';
-import RegisterFormDialog from '../../components/RegisterFormDialog';
+import RegisterFormDialog from './components/RegisterFormDialog';
 import { toast } from 'react-toastify';
 import { createMonitoredPlate, deleteMonitoredPlate, updateMonitoredPlate } from '../../services';
-import { MonitoringService } from '../../services'
+import { monitoringService } from '../../services'
 import PreviewDialog from './components/PreviewDialog';
 import CustomNoRowsOverlay from '../../components/CustomNoRowsOverlay';
 import { MonitoredPlate, MonitoredPlateFormData } from '@/app/types/types';
@@ -50,7 +50,7 @@ export default function RegisterPage() {
     const fetchAndSetData = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await MonitoringService.getMonitoredPlates(
+            const data = await monitoringService.getMonitoredPlates(
                 paginationModel.page, 
                 paginationModel.pageSize,
                 'createdAt,desc' 
@@ -157,7 +157,15 @@ export default function RegisterPage() {
                 {params.value}
             </strong>
         ),
-       },  
+      },  
+      { 
+         field: 'telefone', 
+         headerName: 'WhatsApp', 
+         width: 140,
+         renderCell: (params) => (
+             params.value ? <span className="text-gray-600 text-sm">{params.value}</span> : '-'
+         )
+      },      
       { 
             field: 'statusAtivo', 
             headerName: 'Status', 

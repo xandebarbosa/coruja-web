@@ -3,17 +3,26 @@
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, Switch, TextField } from '@mui/material';
+import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Grid, InputAdornment, Switch, TextField } from '@mui/material';
 import { useEffect } from 'react';
 import { MonitoredPlate, MonitoredPlateFormData } from '@/app/types/types';
+import { WhatsApp } from '@mui/icons-material';
 
 //Schema de validação com Yup
 const validationSchema = yup.object({
-    placa: yup.string().required("A placa é obrigatória").min(7, "A placa deve ter 7 caracteres.").max(7, 'A placa deve ter 7 caracteres'),
+    placa: yup.string()
+      .required("A placa é obrigatória")
+      .min(7, "A placa deve ter 7 caracteres.")
+      .max(7, 'A placa deve ter 7 caracteres'),
     marcaModelo: yup.string().required('A marca/modelo é obrigatória.'),
     cor: yup.string().required('A cor é obrigatória.'),
     motivo: yup.string().required('O motivo é obrigatório.'),
     interessado: yup.string().required('O interessado é obrigatório.'),
+    telefone: yup.string()
+        .required('O telefone para notificação é obrigatório.')
+        .matches(/^\d+$/, 'Apenas números são permitidos.')
+        .min(10, 'O número deve ter DDD + número (mínimo 10 dígitos).')
+        .max(11, 'O número deve ter no máximo 11 dígitos.'),
     observacao: yup.string().required('A observação é obrigatória.'),
     statusAtivo: yup.boolean().required('Campo Status é obrigatório.'),
 });
@@ -35,6 +44,7 @@ const DEFAULT_VALUES: FormData = {
   cor: '',
   motivo: '',
   interessado: '',
+  telefone: '',
   observacao: '',
   statusAtivo: true,
 };
@@ -62,6 +72,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
           cor: initialData.cor || '',
           motivo: initialData.motivo || '',
           interessado: initialData.interessado || '',
+          telefone: initialData.telefone || '',
           observacao: initialData.observacao || '',
           statusAtivo: initialData.statusAtivo ?? true, // Nullish coalescing para boolean
         });
@@ -185,6 +196,32 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
                     variant="outlined"
                     error={!!errors.interessado}
                     helperText={errors.interessado?.message}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Telefone */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Controller
+                name="telefone"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="WhatsApp (com DDD)"
+                    placeholder="14989999999"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.telefone}
+                    helperText={errors.telefone?.message || "Apenas números (DDD + telefone)"}                    
+                    // slotProps={{
+                    //   inputLabel: (
+                    //     <InputAdornment position='start'>
+                    //       <WhatsApp color={errors.telefone ? "error" : "action"} fontSize="small" />
+                    //     </InputAdornment>
+                    //   )
+                    // }}
                   />
                 )}
               />

@@ -6,7 +6,7 @@ export interface PaginationParams {
   size?: number;
 }
 
-export interface AlertHistoryParams extends PaginationParams {
+export interface AlertHistoryParams extends PaginationParams {  
   sort?: string;
 }
 

@@ -11,7 +11,7 @@ import DriveEtaIcon from '@mui/icons-material/DriveEta';
 import ColorLensIcon from '@mui/icons-material/ColorLens';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import PersonIcon from '@mui/icons-material/Person';
-import { getAlertHistory, getMonitoredPlates } from  '../../services/radars'; // Ajuste a importação se necessário
+import { monitoringService } from  '../../services'; // Ajuste a importação se necessário
 import { MonitoredPlate } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
 import { Box, Paper, Typography, Chip, keyframes, Grid, Divider, Card, CardContent, IconButton, Menu, List, ListItem, Slider, MenuItem } from '@mui/material';
@@ -119,7 +119,7 @@ export default function MonitoramentoRealtimePage() {
     const fetchInitialHistory = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await getAlertHistory(paginationModel.page, paginationModel.pageSize, 'timestampAlerta,desc');
+            const data = await monitoringService.getAlertHistory(paginationModel.page, paginationModel.pageSize, 'dataHora,desc');
             console.log("Data fetchHistory  ==>", data);
             
             setRows(data.content || []);

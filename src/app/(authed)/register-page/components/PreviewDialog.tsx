@@ -95,6 +95,11 @@ export default function PreviewDialog({ open, onClose, data }: PreviewDialogProp
           </Grid>
 
           <Grid size={{ xs: 12, md: 6 }}>
+            <Typography variant="subtitle2" color="text.secondary">Telefone</Typography>
+            <Typography variant="body1">{data.telefone || "—"}</Typography>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="subtitle2" color="text.secondary">Interessado</Typography>
             <Typography variant="body1">{data.interessado || "—"}</Typography>
           </Grid>
