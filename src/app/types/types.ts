@@ -71,9 +71,9 @@ export interface AlertHistoryRow {
     cor: string;
     motivo: string;
     interessado: string;
+    telefone: string;
   };
 }
-
 export interface RadarLocationDTO {
   id: number | string;
   concessionaria: string;    
@@ -122,3 +122,4 @@ export interface GeoSearchFormData {
   longitude: string;
   raio: string;
 }
+

@@ -12,55 +12,15 @@ import ColorLensIcon from '@mui/icons-material/ColorLens';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import PersonIcon from '@mui/icons-material/Person';
 import { monitoringService } from  '../../services'; // Ajuste a importação se necessário
-import { MonitoredPlate } from '../../types/types';
+import { AlertHistoryRow, MonitoredPlate } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
-import { Box, Paper, Typography, Chip, keyframes, Grid, Divider, Card, CardContent, IconButton, Menu, List, ListItem, Slider, MenuItem } from '@mui/material';
+import { Box, Paper, Typography, Chip, keyframes, Grid, Divider, Card, CardContent, IconButton, Menu, List, ListItem, Slider, MenuItem, alpha, LinearProgress } from '@mui/material';
 import { Client } from '@stomp/stompjs';
-import { Settings, Visibility } from '@mui/icons-material';
+import { DirectionsCar, LocationOn, Notifications, Settings, Speed, Visibility, VolumeUp } from '@mui/icons-material';
 import AlertPreviewDialog from './components/PreviewDialog';
 import PlacaMercosul from '../../components/PlacaMercosul';
 import SockJS from 'sockjs-client';
 import { toast } from 'react-toastify';
-
-// Interface para os dados que chegam do WebSocket
-// A interface para os dados que chegam em tempo real
-interface RadarEvent {
-    concessionaria: string;
-    data: string;
-    hora: string;
-    placa: string;
-    marcaModelo: string;
-    cor: string;
-    motivo: string;
-    observacao: string;
-    interessado: string;
-    praca: string;
-    rodovia: string;
-    km: string;
-    sentido: string;
-}
-
-// A interface para os dados do histórico
-// Representa um evento de passagem (a placa, onde e quando ela passou).
-interface AlertHistoryRow { 
-    id: number; 
-    placa: string; 
-    data: number[];
-    hora: number[]; 
-    rodovia: string; 
-    concessionaria: string;
-    km: string; 
-    sentido: string; 
-    praca: string;
-    timestampAlerta: string; 
-    placaMonitorada: {
-        id: number;
-        marcaModelo: string;
-        cor: string;
-        motivo: string;
-        interessado: string;
-  };
-}
 
 const formatDateTime = (dateTimeString: string) => {
     if (!dateTimeString) return "N/A";
@@ -72,6 +32,8 @@ export default function MonitoramentoRealtimePage() {
     const [rows, setRows] = useState<AlertHistoryRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [rowCount, setRowCount] = useState(0);    
+    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
     
     //Estados para o Dialog de preview
@@ -119,7 +81,11 @@ export default function MonitoramentoRealtimePage() {
     const fetchInitialHistory = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await monitoringService.getAlertHistory(paginationModel.page, paginationModel.pageSize, 'dataHora,desc');
+            const data = await monitoringService.getAlertHistory({
+                page: paginationModel.page,
+                size: paginationModel.pageSize,
+                sort: 'dataHora,desc' // Ordena por dataHora decrescente
+            });
             console.log("Data fetchHistory  ==>", data);
             
             setRows(data.content || []);
@@ -150,18 +116,23 @@ export default function MonitoramentoRealtimePage() {
             }, 5000); // 5 segundos de som
 
             // Usa a placa recebida para criar uma mensagem customizada
-            toast.info(
-                <div>
-                    <strong>🚨 Novo alerta recebido!</strong>
-                    <p>Passagem detectada para a placa: <strong>{placa}</strong></p>
+             toast.info(
+                <div className="flex items-center gap-3">
+                    <Notifications sx={{ color: '#fca311', fontSize: 28 }} />
+                    <div>
+                        <strong className="text-[#14213d] block mb-1">🚨 Novo alerta detectado!</strong>
+                        <span className="text-sm text-gray-600">Placa: <strong className="text-[#fca311]">{placa}</strong></span>
+                    </div>
                 </div>, 
                 {
                     position: "top-right",
                     autoClose: 5000,
-                    hideProgressBar: false,
-                    closeOnClick: true,
-                    pauseOnHover: true,
-                    draggable: true
+                    style: {
+                        background: 'linear-gradient(135deg, #ffffff 0%, #fef3e2 100%)',
+                        border: '2px solid #fca311',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 24px rgba(252, 163, 17, 0.3)'
+                    }
                 }
             );
         }
@@ -289,284 +260,571 @@ export default function MonitoramentoRealtimePage() {
 
     // Opções de sons disponíveis
     const availableSounds = [
-      { label: 'Sirene Padrão', url: '/sounds/police-operation-siren.mp3' },
-      { label: 'Sirene Guerra', url: '/sounds/alarme-guerra.mp3' },
-      { label: 'Sirene alarme', url: '/sounds/alarme-intelbras.mp3' },
+       { label: 'Sirene Padrão', url: '/sounds/police-operation-siren.mp3', icon: '🚨' },
+       { label: 'Sirene Guerra', url: '/sounds/alarme-guerra.mp3', icon: '⚠️' },
+       { label: 'Sirene Alarme', url: '/sounds/alarme-intelbras.mp3', icon: '🔔' }
     ];
 
     const columns: GridColDef[] = [    
         { 
             field: 'data', 
             headerName: 'Data', 
-            width: 100,
+            width: 130,
+            headerAlign: 'center',
+            align: 'center',
             valueFormatter: (value: number[]) => {
                 if (!value || !Array.isArray(value) || value.length < 3) return '';
-                // Constrói a data a partir do array e formata para pt-BR
-                // Lembre-se: o mês no JavaScript é 0-indexed (0=Janeiro), por isso o 'value[1] - 1'
                 return new Date(value[0], value[1] - 1, value[2]).toLocaleDateString('pt-BR');
             }
         },
-
-        // NOVO: Coluna separada para a Hora da Passagem
         { 
             field: 'hora', 
             headerName: 'Hora', 
-            width: 80,
+            width: 100,
+            headerAlign: 'center',
+            align: 'center',
             valueFormatter: (value: number[]) => {
-                if (!value || !Array.isArray(value) || value.length < 2) {
-                    return '00:00:00';
-                }
-                // Pega a hora e o minuto, garantindo 2 dígitos com padStart
-                const hora = String(value[0]).padStart(2, '0');
-                const minuto = String(value[1]).padStart(2, '0');
-                // Pega o segundo se existir, senão usa '00'
-                const segundo = value.length > 2 ? String(value[2]).padStart(2, '0') : '00';
-
-                return `${hora}:${minuto}:${segundo}`;
+                if (!value || !Array.isArray(value) || value.length < 2) return '00:00:00';
+                return [
+                    String(value[0]).padStart(2, '0'),
+                    String(value[1]).padStart(2, '0'),
+                    value.length > 2 ? String(value[2]).padStart(2, '0') : '00'
+                ].join(':');
             } 
         },
         { 
           field: 'placa', 
           headerName: 'Placa', 
-          width: 120,
-          renderCell: (params: GridRenderCellParams) => <strong className="font-mono">{params.value}</strong>
+          width: 140,
+          headerAlign: 'center',
+          align: 'center',
+          renderCell: (params) => (
+            <Chip
+              label={params.value}
+              sx={{
+                fontWeight: 700,
+                bgcolor: '#fca311',
+                color: '#14213d',
+                fontSize: '15px',
+                fontFamily: 'Roboto Mono, monospace',
+                letterSpacing: '1px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(252, 163, 17, 0.3)',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 4px 12px rgba(252, 163, 17, 0.4)',
+                }
+              }}
+            />
+          )
         },
-        //{ field: 'concessionaria', headerName: 'Concessionária', width: 130 },
-        { field: 'rodovia', headerName: 'Rodovia', width: 200 },
-        { field: 'km', headerName: 'KM', width: 80 },
-        //{ field: 'praca', headerName: 'Praça/Local', flex: 1, minWidth: 200 },
-        { field: 'sentido', headerName: 'Sentido', width: 80 },
+        { 
+          field: 'rodovia', 
+          headerName: 'Rodovia', 
+          width: 140,
+          headerAlign: 'center',
+          align: 'center',
+          renderCell: (params) => (
+            <Typography sx={{ fontWeight: 600, color: '#14213d', fontSize: '14px' }}>
+              {params.value}
+            </Typography>
+          )
+        },
+        { 
+          field: 'km', 
+          headerName: 'KM', 
+          width: 100,
+          headerAlign: 'center',
+          align: 'center',
+          renderCell: (params) => (
+            <Chip
+              label={params.value}
+              size="small"
+              variant="outlined"
+              sx={{
+                borderColor: '#14213d',
+                color: '#14213d',
+                fontWeight: 600
+              }}
+            />
+          )
+        },
+        { 
+          field: 'sentido', 
+          headerName: 'Sentido', 
+          width: 120,
+          headerAlign: 'center',
+          align: 'center'
+        },
         { 
             field: 'marcaModelo', 
             headerName: 'Marca/Modelo',
-            flex: 1, // 'flex: 1' faz a coluna ocupar o espaço restante
-            minWidth: 120,
-            // Usamos 'valueGetter' para acessar o dado dentro de 'placaMonitorada'
+            width: 180,
             valueGetter: (value: any, row: AlertHistoryRow) => row.placaMonitorada?.marcaModelo || 'N/A'
         },
-
-        // NOVO: Coluna para o Motivo do monitoramento
         { 
             field: 'motivo', 
             headerName: 'Motivo',
             flex: 1,
             minWidth: 250,
-            valueGetter: (value: any, row: AlertHistoryRow) => row.placaMonitorada?.motivo || 'N/A'
+            renderCell: (params) => (
+              <Box
+                sx={{
+                  bgcolor: alpha('#fca311', 0.08),
+                  px: 1.5,
+                  py: 0.5,
+                  borderRadius: 1,
+                  borderLeft: '3px solid #fca311',
+                  width: '100%'
+                }}
+              >
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontWeight: 600, 
+                    color: '#14213d',
+                    fontSize: '13px'
+                  }}
+                >
+                  {params.row.placaMonitorada?.motivo || 'N/A'}
+                </Typography>
+              </Box>
+            )
         },    
-        // { 
-        //     field: 'interessado', 
-        //     headerName: 'Interessado',
-        //     width: 150,
-        //     valueGetter: (value: any, row: AlertHistoryRow) => row.placaMonitorada?.interessado || 'N/A'
-        // },
         {
           field: 'actions',
           type: 'actions',
-          headerName: 'Detalhes',
-          width: 80,
+          headerName: 'Ações',
+          width: 100,
+          headerAlign: 'center',
           getActions: (params) => [
             <GridActionsCellItem
               key={`preview-${params.id}`}
-              icon={<Visibility />}
-              label="Visualizar Detalhes da Passagem"          
+              icon={<Visibility sx={{ color: '#fca311' }} />}
+              label="Detalhes"
               onClick={() => handlePreviewClick(params.row)} 
+              showInMenu={false}
             />,
           ],
         },
     ];    
 
     return (
-         <div className='h-full flex flex-col gap-4 p-4 md:p-6'>
-            <Card className='mb-2'>
-                <CardContent>
-                  <Typography variant="h4" className="text-3xl font-bold text-gray-800  mb-4 flex-shrink-0">Monitoramento em Tempo Real</Typography>
-                </CardContent>
-            </Card>            
-
-            {/* 2. Grid principal que divide a tela em duas colunas
-                flex-1 -> Faz este grid "crescer" para ocupar o espaço vertical restante
-                min-h-0 -> Impede problemas de overflow com o flexbox
-            */}
-            <Grid container spacing={4} className="flex-1 min-h-0">
-
-              {/* ======================================================= */}
-              {/* ##           COLUNA DA ESQUERDA (Resumo)             ## */}
-              {/* ======================================================= */}
-              <Grid size={{ xs: 12, md: 4, lg: 3 }} className="flex flex-col">
-                <Paper elevation={3} className="p-4 rounded-lg h-full overflow-y-auto">
-                    <Typography variant="h6" className="font-semibold text-gray-700 mb-2">
-                      Última Passagem Registrada
-                    </Typography>
-                    <Divider className="mb-4" />
-            
-                    {/* ATUALIZADO: O card agora lê os dados de 'mostRecentAlert' */}
-                    {mostRecentAlert ? (
-                      <Box className="space-y-4">
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                             <DriveEtaIcon sx={{ fontSize: '1rem' }} />
-                             <Typography variant="body2">Placa</Typography>
-                            </Box>
-                            <PlacaMercosul placa={mostRecentAlert.placa} />
-                            </Box>
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <BusinessIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Concessionária</Typography>
-                            </Box>
-                            <Chip label={mostRecentAlert.concessionaria.toUpperCase()} color="primary" size="small" className="bg-orange-600 font-semibold" />
-                        </Box>
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <CalendarTodayIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Data da Passagem</Typography>
-                            </Box>
-                            <Typography component="p" className="font-semibold text-gray-800">
-                                { new Date(mostRecentAlert.data[0], mostRecentAlert.data[1] - 1, mostRecentAlert.data[2]).toLocaleDateString('pt-BR') }
-                            </Typography>
-                        </Box>
-
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <AccessTimeIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Hora da Passagem</Typography>
-                            </Box>
-                            <Typography component="p" className="font-semibold text-gray-800">
-                                { 
-                                // Lógica para formatar a HORA a partir do array
-                                    [ 
-                                        String(mostRecentAlert.hora[0]).padStart(2, '0'), 
-                                        String(mostRecentAlert.hora[1]).padStart(2, '0'), 
-                                        //String(mostRecentAlert.hora[2] || 0).padStart(2, '0') 
-                                    ].join(':') 
-                                }
-                            </Typography>
-                 
-                        </Box>
-                        
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <SignpostIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Localização</Typography>
-                            </Box>
-                            <Typography variant="subtitle1" component="p" className="font-semibold text-gray-800">
-                                {mostRecentAlert.rodovia} {mostRecentAlert.km !== 'N/A' && `KM ${mostRecentAlert.km}`} - {mostRecentAlert.praca} ({mostRecentAlert.sentido})
-                            </Typography>
-                        </Box>
-
-                        <Divider className="my-4" />
-
-                        {/* --- Dados do Cadastro do Veículo --- */}
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <DriveEtaIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Marca/Modelo</Typography>
-                            </Box>
-                            <Typography variant="subtitle1" component="p" className="font-semibold text-gray-800">
-                                {mostRecentAlert?.placaMonitorada?.marcaModelo}
-                            </Typography>
-                        </Box>
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <ColorLensIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Cor</Typography>
-                            </Box>
-                            <Typography variant="subtitle1" component="p" className="font-semibold text-gray-800">
-                                {mostRecentAlert?.placaMonitorada?.cor}
-                            </Typography>
-                        </Box>
-                        <Box>
-                            <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                                <HelpOutlineIcon sx={{ fontSize: '1rem' }} />
-                                <Typography variant="body2">Motivo do Monitoramento</Typography>
-                            </Box>
-                            <Chip label={mostRecentAlert?.placaMonitorada?.motivo} color="warning" size="small" className="font-semibold" />
-                        </Box>
-                         <Box>
-                        <Box className="flex items-center gap-1 text-gray-500 mb-1">
-                            <PersonIcon sx={{ fontSize: '1rem' }} />
-                            <Typography variant="body2">Interessado</Typography>
-                        </Box>
-                            <Typography variant="subtitle1" component="p" className="font-semibold text-gray-800">
-                                {mostRecentAlert?.placaMonitorada?.interessado}
-                            </Typography>
-                        </Box>
-                      </Box>
-                    ) : (
-                      <Box className="flex items-center justify-center h-full">
-                        <Typography className="text-gray-500 text-center">Nenhum evento no histórico.</Typography>
-                      </Box>
-                    )}
-                </Paper>
-              </Grid>
+        <div className='min-h-screen bg-gradient-to-br from-gray-50 via-[#fef9f3] to-gray-50 p-6'>
+        {/* Hero Header */}
+        <Card 
+          className='mb-6 overflow-hidden'
+          sx={{
+            background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
+            boxShadow: '0 20px 60px rgba(20, 33, 61, 0.3)',
+            borderRadius: '16px',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
+            }
+          }}
+        >
+          <CardContent className='py-10 px-8'>
+            <div className='flex items-center gap-5'>
+              <Box
+                sx={{
+                  background: 'rgba(252, 163, 17, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(252, 163, 17, 0.3)',
+                  borderRadius: '16px',
+                  p: 2.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 8px 32px rgba(252, 163, 17, 0.2)',
+                }}
+              >
+                <Speed sx={{ fontSize: 48, color: '#fca311' }} />
+              </Box>
               
-              {/* ======================================================= */}
-              {/* ##                COLUNA DA DIREITA (Tabela)           ## */}
-              {/* ======================================================= */}
-              <Grid size={{ xs: 12, md: 8, lg: 9 }} className="flex flex-col">
-                <Paper elevation={3} className="flex-1 flex flex-col overflow-hidden rounded-lg">
-                    <Box className="
-                        p-4                 
-                        bg-amber-500
-                        border-b            // Borda inferior sutil
-                        border-slate-200    // Cor da borda
-                        flex-shrink-0       // Impede que o título encolha  
-                        flex items-center justify-between 
-                    ">
-                        <Typography 
-                            variant="h6" 
-                            className="text-slate-700 font-bold"
-                        >
-                         Histórico de Alertas
+              <div>
+                <Typography 
+                  variant="h3" 
+                  className="font-bold text-white mb-2"
+                  sx={{ 
+                    letterSpacing: '-0.5px',
+                    textShadow: '0 2px 10px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  Monitoramento em Tempo Real
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)',
+                    fontSize: '15px',
+                    fontWeight: 500
+                  }}
+                >
+                  Sistema inteligente de alertas e rastreamento de veículos
+                </Typography>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+
+        {/* Main Grid */}
+        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
+          {/* Sidebar - Latest Alert */}
+          <div className='lg:col-span-4 xl:col-span-3'>
+            <Card 
+              className="h-full overflow-hidden"
+              sx={{
+                boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+                borderRadius: '16px',
+                border: '1px solid rgba(0,0,0,0.06)',
+                position: 'relative',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '4px',
+                  background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
+                }
+              }}
+            >
+              <Box 
+                sx={{ 
+                  background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)',
+                  padding: '20px 24px',
+                  color: '#14213d'
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Notifications sx={{ fontSize: 24 }} />
+                  <Typography variant="h6" className="font-bold">
+                    Última Passagem
+                  </Typography>
+                </div>
+                <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 500 }}>
+                  Atualização em tempo real
+                </Typography>
+              </Box>
+              
+              <CardContent className="p-6">
+                {mostRecentAlert ? (
+                  <div className="space-y-5">
+                    {/* Placa */}
+                    <Box>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#6c757d',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          mb: 1.5
+                        }}
+                      >
+                        <DirectionsCar sx={{ fontSize: 16 }} />
+                        Placa Identificada
+                      </Typography>
+                      <PlacaMercosul placa={mostRecentAlert.placa} />
+                    </Box>
+                    
+                    {/* Stats Grid */}
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 2,
+                        p: 2,
+                        bgcolor: '#f8f9fa',
+                        borderRadius: 2,
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                          Data
                         </Typography>
-                        
-                        <IconButton
-                            size='small'
-                            aria-label='Configurações de som'
-                            onClick={(e) => setAnchorEl(e.currentTarget)}
-                        >
-                            <Settings />
-                        </IconButton>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
+                          {new Date(mostRecentAlert.data[0], mostRecentAlert.data[1] - 1, mostRecentAlert.data[2]).toLocaleDateString('pt-BR')}
+                        </Typography>
+                      </Box>
+                      
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                          Hora
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
+                          {[
+                            String(mostRecentAlert.hora[0]).padStart(2, '0'), 
+                            String(mostRecentAlert.hora[1]).padStart(2, '0'), 
+                          ].join(':')}
+                        </Typography>
+                      </Box>
                     </Box>
 
-                    <Menu
-                        anchorEl={anchorEl}
-                        open={Boolean(anchorEl)}
-                        onClose={() => setAnchorEl(null)}
+                    <Divider />
+
+                    {/* Location Info */}
+                    <Box>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#6c757d',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          mb: 1
+                        }}
+                      >
+                        <LocationOn sx={{ fontSize: 16 }} />
+                        Localização
+                      </Typography>
+                      <Box
+                        sx={{
+                          bgcolor: alpha('#fca311', 0.1),
+                          p: 2,
+                          borderRadius: 2,
+                          borderLeft: '4px solid #fca311'
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d', mb: 1 }}>
+                          {mostRecentAlert.rodovia} KM {mostRecentAlert.km}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {mostRecentAlert.praca} • {mostRecentAlert.sentido}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    <Divider />
+
+                    {/* Vehicle Details */}
+                    <Box className="space-y-3">
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#6c757d',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                          display: 'block',
+                          mb: 1
+                        }}
+                      >
+                        Dados do Veículo
+                      </Typography>
+                      
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                          Modelo
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                          {mostRecentAlert?.placaMonitorada?.marcaModelo}
+                        </Typography>
+                      </Box>
+                      
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                          Cor
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                          {mostRecentAlert?.placaMonitorada?.cor}
+                        </Typography>
+                      </Box>
+
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                          Motivo do Monitoramento
+                        </Typography>
+                        <Chip 
+                          label={mostRecentAlert?.placaMonitorada?.motivo} 
+                          size="small"
+                          sx={{
+                            bgcolor: '#fff3cd',
+                            color: '#856404',
+                            fontWeight: 600,
+                            fontSize: '12px'
+                          }}
+                        />
+                      </Box>
+                      
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                          Interessado
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                          {mostRecentAlert?.placaMonitorada?.interessado}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </div>
+                ) : (
+                  <Box 
+                    sx={{ 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '400px',
+                      textAlign: 'center',
+                      color: '#adb5bd'
+                    }}
+                  >
+                    <Notifications sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      Aguardando novos alertas...
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+            </div>
+        </div>
+          
+          {/* Main Content */}
+          <div className='lg:col-span-8 xl:col-span-9'>
+            <Card 
+              className="overflow-hidden"
+              sx={{
+                boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+                borderRadius: '16px',
+                border: '1px solid rgba(0,0,0,0.06)'
+              }}
+            >
+              <Box 
+                sx={{ 
+                  background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
+                  padding: '24px 28px',
+                }}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <Typography variant="h6" className="font-bold text-white mb-1">
+                      Histórico de Alertas
+                    </Typography>
+                    {rowCount > 0 && (
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                        <strong className="text-[#fca311]">{rowCount}</strong> {rowCount === 1 ? 'registro encontrado' : 'registros encontrados'}
+                      </Typography>
+                    )}
+                  </div>
+                  
+                  {/* Audio Settings */}
+                  <IconButton
+                    onClick={(e) => setAnchorEl(e.currentTarget)}
+                    sx={{
+                      bgcolor: 'rgba(252, 163, 17, 0.15)',
+                      color: '#fca311',
+                      '&:hover': {
+                        bgcolor: 'rgba(252, 163, 17, 0.25)',
+                      }
+                    }}
+                  >
+                    <Settings />
+                  </IconButton>
+                </div>
+                
+                {loading && (
+                  <LinearProgress 
+                    sx={{ 
+                      mt: 2,
+                      bgcolor: 'rgba(255,255,255,0.1)',
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: '#fca311'
+                      }
+                    }} 
+                  />
+                )}
+              </Box>
+
+              <Menu 
+                anchorEl={anchorEl} 
+                open={Boolean(anchorEl)} 
+                onClose={() => setAnchorEl(null)}
+                PaperProps={{
+                  sx: {
+                    mt: 1,
+                    borderRadius: 2,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                    minWidth: 280
+                  }
+                }}
+              >
+                <Box sx={{ p: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#14213d', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <VolumeUp sx={{ fontSize: 18, color: '#fca311' }} />
+                    Configurações de Áudio
+                  </Typography>
+                  
+                  <Typography variant="caption" sx={{ color: '#6c757d', fontWeight: 600, display: 'block', mb: 1 }}>
+                    Volume
+                  </Typography>
+                  <Slider
+                    value={audioVolume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={handleVolumeChange}
+                    sx={{
+                      color: '#fca311',
+                      '& .MuiSlider-thumb': {
+                        bgcolor: '#fca311',
+                        boxShadow: '0 2px 8px rgba(252, 163, 17, 0.4)'
+                      }
+                    }}
+                  />
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="caption" sx={{ color: '#6c757d', fontWeight: 600, display: 'block', mb: 1 }}>
+                    Selecionar Som
+                  </Typography>
+                  {availableSounds.map((sound) => (
+                    <MenuItem
+                      key={sound.url}
+                      selected={audioSource === sound.url}
+                      onClick={() => handleSoundChange(sound.url)}
+                      sx={{
+                        borderRadius: 1,
+                        mb: 0.5,
+                        '&.Mui-selected': {
+                          bgcolor: alpha('#fca311', 0.1),
+                          '&:hover': {
+                            bgcolor: alpha('#fca311', 0.15),
+                          }
+                        }
+                      }}
                     >
-                        <List dense sx={{ width: 250 }}>
-                          <ListItem>
-                            <Typography variant="subtitle2">Volume</Typography>
-                          </ListItem>
-                          <ListItem>
-                            <Slider
-                              value={audioVolume}
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              onChange={handleVolumeChange}
-                            />
-                          </ListItem>
-                          <ListItem>
-                            <Typography variant="subtitle2">Selecionar Som</Typography>
-                          </ListItem>
-                          {availableSounds.map((sound) => (
-                            <MenuItem
-                              key={sound.url}
-                              selected={audioSource === sound.url}
-                              onClick={() =>handleSoundChange(sound.url)}
-                            >
-                              {sound.label}
-                            </MenuItem>
-                          ))}
-                        </List>
-                    </Menu>
-                                    
-                  <Box className="h-[43.1rem] w-full bg-gray-300 rounded-lg shadow-sm">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <span style={{ fontSize: '18px' }}>{sound.icon}</span>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {sound.label}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Box>
+              </Menu>
+              <CardContent className="p-0">
+                <Box className="h-[43.1rem] w-full bg-gray-300 rounded-lg shadow-sm">
                     <DataGrid
                       rows={rows}
                       columns={columns}
-                      getRowId={(row) => row.id ?? Math.random()} // Fallback seguro para o ID
+                      getRowId={(row) => row.id ?? Math.random()}
                       rowCount={rowCount}
                       loading={loading}
                       paginationModel={paginationModel}
@@ -574,9 +832,26 @@ export default function MonitoramentoRealtimePage() {
                       onPaginationModelChange={setPaginationModel}
                       disableRowSelectionOnClick
                       paginationMode="server"
+                      autoHeight={false}
                       slots={{ 
                         pagination: CustomPagination, 
-                        noRowsOverlay: () => <Box sx={{p:4, textAlign: 'center'}}>Nenhum alerta no histórico.</Box> 
+                        noRowsOverlay: () => (
+                            <Box 
+                              sx={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              height: '100%',
+                              color: '#adb5bd'
+                             }}
+                            >
+                                <Notifications sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                  Nenhum alerta registrado
+                                </Typography>
+                            </Box> 
+                        )
                       }} //
                       sx={{
                         // Remove todas as bordas para um visual flutuante
@@ -615,16 +890,21 @@ export default function MonitoramentoRealtimePage() {
                     }}
                     />                    
                   </Box>
+              </CardContent>
+              </Card>
+                                    
+                  
                  
-                </Paper>
-              </Grid>
-            </Grid>
+                
+              
+            
             
             <AlertPreviewDialog
                 open={isPreviewOpen}
                 onClose={handleClosePreview}
                 data={selectedRowData}
             />            
+        </div>
         </div>
     );
 }

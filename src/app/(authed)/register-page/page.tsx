@@ -1,10 +1,10 @@
 'use client';
 
-import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, FormGroup, InputAdornment, Paper, Switch, TextareaAutosize, TextField, Typography } from '@mui/material'
+import { alpha, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, FormGroup, InputAdornment, Paper, Switch, TextareaAutosize, TextField, Typography } from '@mui/material'
 import { DataGrid, GridActionsCellItem, GridColDef, GridRenderCellParams, GridRowId, GridRowParams } from '@mui/x-data-grid'
 import  { ReactNode, useCallback, useEffect, useState } from 'react'
 import CustomPagination from '../../components/CustomPagination'
-import {SearchOutlined, AddOutlined, Delete, DeleteOutlined, EditOffOutlined, EditDocument, EditNoteOutlined, VisibilityOffRounded} from '@mui/icons-material';
+import {SearchOutlined, AddOutlined, Delete, DeleteOutlined, EditOffOutlined, EditDocument, EditNoteOutlined, VisibilityOffRounded, Visibility, TrendingUp, DirectionsCar} from '@mui/icons-material';
 import RegisterFormDialog from './components/RegisterFormDialog';
 import { toast } from 'react-toastify';
 import { createMonitoredPlate, deleteMonitoredPlate, updateMonitoredPlate } from '../../services';
@@ -21,30 +21,13 @@ export default function RegisterPage() {
       page: 0,
       pageSize: 10,
     });
-    const [open, setOpen] = useState(false);
+    
     const [isFormOpen, setIsFormOpen] = useState(false);
 
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedPlate, setSelectedPlate] = useState<MonitoredPlate | null>(null);
-    const [editingPlate, setEditingPlate] = useState<MonitoredPlate | null>(null);    
-
-    const handleOpenDialog = () => {
-      setIsFormOpen(true);
-    };
-
-    const handleCloseDialog = () => {
-      setIsFormOpen(false);
-    };
-
-    const handlePreviewClick = (row: MonitoredPlate) => () => {
-        setSelectedPlate(row); // Guarda os dados da linha selecionada
-        setIsPreviewOpen(true); // Abre o dialog
-    };
-
-    // NOVO: Função para fechar o dialog
-    const handleClosePreview = () => {
-        setIsPreviewOpen(false);
-    };
+    const [editingPlate, setEditingPlate] = useState<MonitoredPlate | null>(null); 
+    const [searchTerm, setSearchTerm] = useState('');      
 
      // Função para buscar e atualizar os dados da tabela
     const fetchAndSetData = useCallback(async () => {
@@ -81,11 +64,11 @@ export default function RegisterPage() {
                 toast.success(`Monitoramento - Placa ${formData.placa} atualizada com sucesso!`);
             } else {
                 // Se não há ID, estamos criando                
-                await createMonitoredPlate(formData);
+                await monitoringService.createMonitoredPlate(formData);
                 console.log("FormData ==> ", formData);
                 toast.success(`Placa ${formData.placa} adicionada ao monitoramento!`);
             }
-            handleCloseDialog();
+            setIsFormOpen(false);
             fetchAndSetData(); // Recarrega a tabela para mostrar as mudanças
         } catch (error) {
             toast.error("Erro ao salvar os dados.");
@@ -116,215 +99,525 @@ export default function RegisterPage() {
         }
     };
 
+     const handleOpenDialog = () => {
+      setIsFormOpen(true);
+    };
+
+    const handleCloseDialog = () => {
+      setIsFormOpen(false);
+    };
+
+    const handlePreviewClick = (row: MonitoredPlate) => () => {
+        setSelectedPlate(row); // Guarda os dados da linha selecionada
+        setIsPreviewOpen(true); // Abre o dialog
+    };
+
+    // NOVO: Função para fechar o dialog
+    const handleClosePreview = () => {
+        setIsPreviewOpen(false);
+    };
+
     const columns: GridColDef[] = [
-      { field: 'createdAt', headerName: 'Data', width: 180, 
+      { 
+        field: 'createdAt', 
+        headerName: 'Data cADASTRO', 
+        width: 180,
+        headerAlign: 'center',
+        align: 'center', 
         // A função agora espera um array de números (number[]) em vez de uma string.
         valueFormatter: (value: number[]) => {
           if (!value || !Array.isArray(value) || value.length < 6) {
             return ''; // Retorna vazio se o dado não for um array válido
           }        
           // Extrai as partes do array
-          const [year, month, day, hour, minute, second] = value;
-        
+          const [year, month, day, hour, minute, second] = value;        
           // IMPORTANTE: O construtor de Date em JavaScript usa meses baseados em zero (0=Janeiro, 1=Fevereiro...)
           // Por isso, subtraímos 1 do mês que vem do backend (que é 1-based).
-          const date = new Date(year, month - 1, day, hour, minute, second);
-        
+          const date = new Date(year, month - 1, day, hour, minute, second);        
           // Formata a data e a hora para o padrão brasileiro
           return date.toLocaleString('pt-BR');
         },
       },
-      { field: 'placa', 
-        headerName: 'Placa', 
-        width: 120, 
-        align: 'center', 
-        headerAlign: 'center',
-         renderCell: (params) => (          
-            <strong className="font-bold text-red-600">
-                {params.value}
-            </strong>
-        ),
-       },
-      { field: 'marcaModelo', headerName: 'Marca/Modelo', width: 150 },
-      { field: 'cor', headerName: 'Cor', width: 100 },      
-      { field: 'motivo', 
-        headerName: 'Motivo', 
-        width: 350,
-         renderCell: (params) => (
-            // Usamos a tag <strong> para dar peso semântico de importância
-            // e aplicamos classes do Tailwind para o estilo visual.
-            <strong className="font-bold text-blue-700">
-                {params.value}
-            </strong>
-        ),
-      },  
       { 
-         field: 'telefone', 
-         headerName: 'WhatsApp', 
-         width: 140,
-         renderCell: (params) => (
-             params.value ? <span className="text-gray-600 text-sm">{params.value}</span> : '-'
-         )
+        field: 'placa', 
+        headerName: 'Placa', 
+        width: 140,
+        headerAlign: 'center',
+        align: 'center',
+        renderCell: (params) => (
+          <Chip
+            label={params.value}
+            size="medium"
+            sx={{
+              fontWeight: 700,
+              bgcolor: '#fca311',
+              color: '#14213d',
+              fontSize: '15px',
+              fontFamily: 'Roboto Mono, monospace',
+              letterSpacing: '1px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(252, 163, 17, 0.3)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(252, 163, 17, 0.4)',
+              }
+            }}
+          />
+        ),
+      },
+      { 
+        field: 'marcaModelo', 
+        headerName: 'Marca/Modelo', 
+        width: 200,
+        renderCell: (params) => (
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#14213d' }}>
+            {params.value}
+          </Typography>
+        )
+      },
+      { 
+        field: 'cor', 
+        headerName: 'Cor', 
+        width: 120,
+        renderCell: (params) => (
+          <Chip
+            label={params.value}
+            size="small"
+            variant="outlined"
+            sx={{
+              borderColor: '#14213d',
+              color: '#14213d',
+              fontWeight: 500
+            }}
+          />
+        )
       },      
       { 
-            field: 'statusAtivo', 
-            headerName: 'Status', 
-            width: 120,
-            renderCell: (params: GridRenderCellParams): ReactNode => {
-                const isAtivo = params.value === true;
-                return (
-                    <Chip 
-                        label={isAtivo ? 'Ativo' : 'Inativo'}
-                        color={isAtivo ? 'success' : 'error'}
-                        size="small"
-                        variant="outlined"
-                    />
-                );
-            }
-        },   
-        {
-            field: 'actions',
-            type: 'actions',
-            headerName: 'Ações',
-            width: 120, // Aumenta um pouco a largura para caber 3 ícones
-            cellClassName: 'actions',
-            getActions: (params: { id: GridRowId, row: MonitoredPlate }) => [ // Passamos 'row' para o preview
-                // NOVO: Botão de Ação para Visualizar
-                <GridActionsCellItem
-                    key={`preview-${params.id}`}
-                    icon={<VisibilityOffRounded />}
-                    label="Visualizar"
-                    onClick={handlePreviewClick(params.row)}
-                />,
-                <GridActionsCellItem
-                    key={`edit-${params.id}`}
-                    icon={<EditNoteOutlined sx={{ color: '#778da9' }} />}
-                    label="Editar"
-                    onClick={() => handleEditClick(params.row)}
-                    color="inherit"
-                />,
-                <GridActionsCellItem
-                    key={`delete-${params.id}`}
-                    icon={<Delete sx={{ color: '#e63946' }}/>}
-                    label="Deletar"
-                    onClick={handleDeleteClick(params.id)}
-                    color="default"
-                />,
-            ],
-        },
-        { field: 'interessado', headerName: 'Interessado', width: 150 },
+        field: 'motivo', 
+        headerName: 'Motivo', 
+        flex: 1,
+        minWidth: 300,
+        renderCell: (params) => (
+          <Box
+            sx={{
+              bgcolor: alpha('#fca311', 0.08),
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              borderLeft: '3px solid #fca311',
+              width: '100%',
+              my: 0.5
+            }}
+          >
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 600, 
+                color: '#14213d',
+                fontSize: '13px'
+              }}
+            >
+              {params.value}
+            </Typography>
+          </Box>
+        ),
+      },
+      { 
+        field: 'telefone', 
+        headerName: 'WhatsApp', 
+        width: 140,
+        headerAlign: 'center',
+        align: 'center',
+        renderCell: (params) => (
+          params.value ? (
+            <Chip
+              label={params.value}
+              size="small"
+              icon={<Box component="span" sx={{ fontSize: '16px' }}>📱</Box>}
+              sx={{
+                bgcolor: '#e8f5e9',
+                color: '#2e7d32',
+                fontWeight: 500,
+                fontSize: '12px'
+              }}
+            />
+          ) : (
+            <Typography variant="caption" color="text.secondary">-</Typography>
+          )
+        )
+      }, 
+      { 
+        field: 'statusAtivo', 
+        headerName: 'Status', 
+        width: 120,
+        headerAlign: 'center',
+        align: 'center',
+        renderCell: (params: GridRenderCellParams): ReactNode => {
+          const isAtivo = params.value === true;
+          return (
+            <Chip 
+              label={isAtivo ? 'Ativo' : 'Inativo'}
+              size="small"
+              sx={{
+                bgcolor: isAtivo ? '#d4edda' : '#f8d7da',
+                color: isAtivo ? '#155724' : '#721c24',
+                fontWeight: 600,
+                fontSize: '12px',
+                borderRadius: '6px',
+                px: 1
+              }}
+            />
+          );
+        }
+      },   
+      {
+        field: 'actions',
+        type: 'actions',
+        headerName: 'Ações',
+        width: 130,
+        headerAlign: 'center',
+        getActions: (params: { id: GridRowId, row: MonitoredPlate }) => [
+          <GridActionsCellItem
+            key={`preview-${params.id}`}
+            icon={<Visibility sx={{ color: '#6c757d' }} />}
+            label="Visualizar"
+            onClick={() => handlePreviewClick(params.row)}
+            showInMenu={false}
+          />,
+          <GridActionsCellItem
+            key={`edit-${params.id}`}
+            icon={<EditNoteOutlined sx={{ color: '#fca311' }} />}
+            label="Editar"
+            onClick={() => handleEditClick(params.row)}
+            showInMenu={false}
+          />,
+          <GridActionsCellItem
+            key={`delete-${params.id}`}
+            icon={<Delete sx={{ color: '#dc3545' }}/>}
+            label="Deletar"
+            onClick={handleDeleteClick(params.id)}
+            showInMenu={false}
+          />,
+        ],
+      },
+      { 
+        field: 'interessado', 
+        headerName: 'Interessado', 
+        width: 180,
+        renderCell: (params) => (
+          <Typography variant="body2" sx={{ color: '#495057', fontWeight: 500 }}>
+            {params.value}
+          </Typography>
+        )
+      },
     ];
 
    
 
   return (
-    // 1. Container principal: é um flex container vertical que ocupa 100% da altura
-        <div className='h-full flex flex-col gap-4 p-6'>
-            
-            {/* --- TÍTULO DA PÁGINA --- */}
-            {/* Este é o primeiro item do flex. Ele terá sua altura natural. */}
-            <Card className='flex-shrink-0 shadow-md'>
-                <CardContent>
-                    <Typography variant="h4" className="font-bold text-[#778da9]">
-                        Cadastro de Veículo / Monitoramento
-                    </Typography>
-                </CardContent>
-            </Card>
-
-            <Paper elevation={3} className="flex-1 flex flex-col overflow-hidden rounded-lg">
-                
-              {/* Cabeçalho de Ações (dentro do Paper) */}
-              <Box className="p-4 flex justify-between items-center border-b border-gray-200 bg-gray-50">
-                    <div className="flex items-center gap-2">
-                        <Typography variant="body2" className="text-gray-600">Classificado por:</Typography>
-                        <Typography variant="body2" className="font-semibold text-gray-800">Data</Typography>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <TextField
-                            placeholder="Buscar placa..."
-                            variant="outlined"
-                            size="small"
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchOutlined color="action" />
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                        <Button 
-                          variant="contained" 
-                          startIcon={<AddOutlined />} 
-                          onClick={handleOpenDialog}
-                          className="bg-orange-500 hover:bg-orange-600">
-                            Inserir Novo
-                        </Button>
-                        
-                    </div>
+    <div className='min-h-screen bg-gradient-to-br from-gray-50 via-[#fef9f3] to-gray-50 p-6'>
+      {/* Hero Header Card */}
+      <Card 
+        className='mb-6 overflow-hidden'
+        sx={{
+          background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
+          boxShadow: '0 20px 60px rgba(20, 33, 61, 0.3)',
+          borderRadius: '16px',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
+          }
+        }}
+      >
+        <CardContent className='py-10 px-8'>
+          <div className='flex flex-col md:flex-row items-center justify-between gap-6'>
+            <div className='flex items-center gap-5'>
+              {/* Icon Container com efeito glass */}
+              <Box
+                sx={{
+                  background: 'rgba(252, 163, 17, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(252, 163, 17, 0.3)',
+                  borderRadius: '16px',
+                  p: 2.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 8px 32px rgba(252, 163, 17, 0.2)',
+                }}
+              >
+                <DirectionsCar sx={{ fontSize: 48, color: '#fca311' }} />
               </Box>
-
-              {/* Área do DataGrid (ocupa o espaço restante dentro do Paper) */}
-              <Box className="flex-1 min-h-0">
-                <DataGrid
-                  // Removemos a borda padrão para que ele se integre melhor ao Paper
-                  rows={rows}
-                  columns={columns}
-                  rowCount={rowCount}
-                  loading={loading}
-                  pageSizeOptions={[10, 20, 50, 100]}
-                  paginationModel={paginationModel}
-                  onPaginationModelChange={setPaginationModel}
-                  paginationMode='server'
-                  slots={{
-                      pagination: CustomPagination,
-                      noRowsOverlay: CustomNoRowsOverlay
-                  }}
-                  sx={{
-                    // Remove a borda padrão do DataGrid para um visual mais limpo e integrado ao Paper
-                    border: 'none',
-
-                    // Estiliza o container principal do cabeçalho
-            
-
-                    // Garante que os ÍCONES do cabeçalho (setas de ordenação, menu) também fiquem brancos
-                  '& .MuiDataGrid-iconButtonContainer .MuiButtonBase-root': {
-                      color: '#FFFFFF',
-                  },
-                  '& .MuiDataGrid-menuIcon .MuiButtonBase-root': {
-                      color: '#FFFFFF',
-                  },
-
-                  // Estilos para as linhas que já estavam funcionando
-                  '& .MuiDataGrid-row:nth-of-type(odd)': {
-                      backgroundColor: '#F8FAFC', // Cinza bem claro para efeito zebra
-                  },
-            
-                  '& .MuiDataGrid-row:hover': {
-                      backgroundColor: '#FFF7ED', // Laranja bem claro no hover
-                  },
-
-                  // Garante que as células não tenham bordas verticais, para um visual mais limpo
-                  '& .MuiDataGrid-cell': {
-                      borderBottom: '1px solid #E0E0E0',
-                  },
-                  }}
-                />
-              </Box>
-
-              <PreviewDialog
-                open={isPreviewOpen}
-                onClose={handleClosePreview}
-                data={selectedPlate}
-              />
-
-              <RegisterFormDialog
-                open={isFormOpen}
-                onClose={handleCloseDialog}
-                onSubmit={handleFormSubmit}
-                initialData={editingPlate}
-              />
               
-            </Paper>
-        </div>
+              <div>
+                <Typography 
+                  variant="h3" 
+                  className="font-bold text-white mb-2"
+                  sx={{ 
+                    letterSpacing: '-0.5px',
+                    textShadow: '0 2px 10px rgba(0,0,0,0.2)'
+                  }}
+                >
+                  Cadastro de Veículos
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    color: 'rgba(255,255,255,0.8)',
+                    fontSize: '15px',
+                    fontWeight: 500
+                  }}
+                >
+                  Gerenciamento completo de placas monitoradas
+                </Typography>
+              </div>
+            </div>
+
+            {/* CTA Button com animação */}
+            <Button 
+              variant="contained" 
+              startIcon={<AddOutlined />} 
+              onClick={handleOpenAddDialog}
+              size="large"
+              sx={{
+                minWidth: '200px',
+                height: '56px',
+                background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)',
+                color: '#14213d',
+                fontWeight: 700,
+                fontSize: '16px',
+                textTransform: 'none',
+                borderRadius: '12px',
+                boxShadow: '0 8px 24px rgba(252, 163, 17, 0.4)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #ff8800 0%, #fca311 100%)',
+                  boxShadow: '0 12px 32px rgba(252, 163, 17, 0.5)',
+                  transform: 'translateY(-2px)',
+                },
+                '&:active': {
+                  transform: 'translateY(0)',
+                }
+              }}
+            >
+              Adicionar Veículo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data Grid Card */}
+      <Card 
+        className="overflow-hidden"
+        sx={{
+          boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          borderRadius: '16px',
+          border: '1px solid rgba(0,0,0,0.06)'
+        }}
+      >
+        {/* Search & Stats Header */}
+        <Box 
+          sx={{ 
+            background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
+            padding: '24px 28px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)'
+          }}
+        >
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            {/* Search Box */}
+            <TextField
+              placeholder="Buscar por placa..."
+              variant="outlined"
+              size="medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlined sx={{ color: 'rgba(255,255,255,0.6)' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                width: { xs: '100%', md: '320px' },
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgba(255,255,255,0.08)',
+                  color: 'white',
+                  borderRadius: '12px',
+                  transition: 'all 0.3s ease',
+                  '& fieldset': {
+                    borderColor: 'rgba(255,255,255,0.15)',
+                  },
+                  '&:hover': {
+                    bgcolor: 'rgba(255,255,255,0.12)',
+                    '& fieldset': {
+                      borderColor: 'rgba(252, 163, 17, 0.5)',
+                    },
+                  },
+                  '&.Mui-focused': {
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    boxShadow: '0 0 0 3px rgba(252, 163, 17, 0.2)',
+                    '& fieldset': {
+                      borderColor: '#fca311',
+                    },
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  '&::placeholder': {
+                    color: 'rgba(255,255,255,0.5)',
+                  },
+                },
+              }}
+            />
+
+            {/* Stats Badge */}
+            {rowCount > 0 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  bgcolor: 'rgba(252, 163, 17, 0.15)',
+                  border: '1px solid rgba(252, 163, 17, 0.3)',
+                  borderRadius: '12px',
+                  px: 3,
+                  py: 1.5,
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <TrendingUp sx={{ color: '#fca311', fontSize: 22 }} />
+                <div>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}
+                  >
+                    Total Cadastrado
+                  </Typography>
+                  <Typography 
+                    variant="h6" 
+                    sx={{ 
+                      color: 'white',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      mt: 0.5
+                    }}
+                  >
+                    {rowCount} {rowCount === 1 ? 'veículo' : 'veículos'}
+                  </Typography>
+                </div>
+              </Box>
+            )}
+          </div>
+        </Box>
+
+        {/* DataGrid */}
+        <CardContent className="p-0">
+          <Box sx={{ height: 700, width: '100%' }}>
+            <DataGrid
+              rows={rows}
+              columns={columns}
+              rowCount={rowCount}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50, 100]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              paginationMode='server'
+              autoHeight={false}
+              slots={{
+                pagination: CustomPagination,
+                noRowsOverlay: CustomNoRowsOverlay
+              }}
+              sx={{
+                border: 'none',
+                '& .MuiDataGrid-columnHeaders': {
+                  bgcolor: '#f8f9fa',
+                  borderBottom: '2px solid #e9ecef',
+                  minHeight: '56px !important',
+                  maxHeight: '56px !important',
+                },
+                '& .MuiDataGrid-columnHeader': {
+                  outline: 'none !important',
+                  '&:focus': {
+                    outline: 'none !important',
+                  },
+                },
+                '& .MuiDataGrid-columnHeaderTitle': {
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  color: '#14213d',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                },
+                '& .MuiDataGrid-columnSeparator': {
+                  color: '#dee2e6',
+                },
+                '& .MuiDataGrid-row': {
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    bgcolor: '#fef3e2',
+                    transform: 'scale(1.001)',
+                  },
+                  '&.Mui-selected': {
+                    bgcolor: alpha('#fca311', 0.08),
+                    '&:hover': {
+                      bgcolor: alpha('#fca311', 0.12),
+                    },
+                  },
+                },
+                '& .MuiDataGrid-cell': {
+                  borderBottom: '1px solid #f1f3f5',
+                  fontSize: '14px',
+                  color: '#495057',
+                  '&:focus': {
+                    outline: 'none',
+                  },
+                },
+                '& .MuiDataGrid-footerContainer': {
+                  borderTop: '2px solid #e9ecef',
+                  bgcolor: '#f8f9fa',
+                  minHeight: '56px',
+                },
+                '& .MuiTablePagination-root': {
+                  color: '#14213d',
+                },
+                '& .MuiDataGrid-virtualScroller': {
+                  bgcolor: 'white',
+                },
+                '& .MuiDataGrid-overlayWrapper': {
+                  minHeight: '400px',
+                },
+              }}
+            />
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Dialogs */}
+      <PreviewDialog
+        open={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={selectedPlate}
+      />
+
+      <RegisterFormDialog
+        open={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        onSubmit={handleFormSubmit}
+        initialData={editingPlate}
+      />
+    </div>
   )
 }
