@@ -7,6 +7,7 @@ import { alpha, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, 
 import { useEffect } from 'react';
 import { MonitoredPlate, MonitoredPlateFormData } from '@/app/types/types';
 import { Close, Description, DriveEta, Palette, PersonOutline, Warning, WhatsApp } from '@mui/icons-material';
+import TelegramUserSelect from './TelegramUserSelect';
 
 //Schema de validação com Yup
 const validationSchema = yup.object({
@@ -18,11 +19,7 @@ const validationSchema = yup.object({
     cor: yup.string().required('A cor é obrigatória.'),
     motivo: yup.string().required('O motivo é obrigatório.'),
     interessado: yup.string().required('O interessado é obrigatório.'),
-    telefone: yup.string()
-        .required('O telefone para notificação é obrigatório.')
-        .matches(/^\d+$/, 'Apenas números são permitidos.')
-        .min(10, 'O número deve ter DDD + número (mínimo 10 dígitos).')
-        .max(11, 'O número deve ter no máximo 11 dígitos.'),
+    telegramChatId: yup.string().nullable().defined(),
     observacao: yup.string().required('A observação é obrigatória.'),
     statusAtivo: yup.boolean().required('Campo Status é obrigatório.'),
 });
@@ -44,7 +41,7 @@ const DEFAULT_VALUES: FormData = {
   cor: '',
   motivo: '',
   interessado: '',
-  telefone: '',
+  telegramChatId: null, // Alterado para null para compatibilidade com o Autocomplete
   observacao: '',
   statusAtivo: true,
 };
@@ -72,7 +69,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
           cor: initialData.cor || '',
           motivo: initialData.motivo || '',
           interessado: initialData.interessado || '',
-          telefone: initialData.telefone || '',
+          telegramChatId: initialData.telegramChatId || null,
           observacao: initialData.observacao || '',
           statusAtivo: initialData.statusAtivo ?? true, // Nullish coalescing para boolean
         });
@@ -84,8 +81,15 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
   }, [initialData, open, reset]);
 
   const onFormSubmit = (data: FormData) => {
+    // Conversão segura para o tipo que a API espera
+    const submitData: MonitoredPlateFormData = {
+      ...data,
+      // Garante que se for null, envie null (ou undefined se sua API preferir)
+      telegramChatId: data.telegramChatId || undefined,
+    };
+
     // Passa os dados e o ID (se existir) para o pai
-    onSubmit(data, initialData?.id);
+    onSubmit(submitData, initialData?.id);
   };
 
   return (
@@ -327,31 +331,12 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
             {/* Telefone */}
             <Grid size={{ xs: 12, sm: 5 }}>
               <Controller
-                name="telefone"
+                name="telegramChatId"
                 control={control}
                 render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="WhatsApp"
-                    placeholder="14989999999"
-                    fullWidth
-                    variant="outlined"
-                    error={!!errors.telefone}
-                    helperText={errors.telefone?.message || "DDD + número (apenas números)"}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <WhatsApp sx={{ color: errors.telefone ? '#ef4444' : '#25D366' }} />
-                        </InputAdornment>
-                      )
-                    }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        '&:hover fieldset': { borderColor: '#fca311' },
-                        '&.Mui-focused fieldset': { borderColor: '#fca311', borderWidth: 2 },
-                        backgroundColor: 'white'
-                      }
-                    }}
+                  <TelegramUserSelect
+                    value={field.value || null} // Garante que string vazia seja tratada como null
+                    onChange={(newValue) => field.onChange(newValue)}
                   />
                 )}
               />

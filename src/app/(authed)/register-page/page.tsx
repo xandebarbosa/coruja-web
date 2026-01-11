@@ -120,7 +120,7 @@ export default function RegisterPage() {
     const columns: GridColDef[] = [
       { 
         field: 'createdAt', 
-        headerName: 'Data cADASTRO', 
+        headerName: 'Data Cadastro', 
         width: 180,
         headerAlign: 'center',
         align: 'center', 

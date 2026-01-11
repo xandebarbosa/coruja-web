@@ -41,6 +41,7 @@ export interface MonitoredPlate {
   observacao?: string;
   interessado?: string;
   telefone?: string;
+  telegramChatId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -123,3 +124,13 @@ export interface GeoSearchFormData {
   raio: string;
 }
 
+// Interface do Usuário Telegram
+export interface TelegramUser {
+  id: number;
+  telegramId: string;
+  username: string;
+  primeiroNome: string;
+  sobreNome: string;
+  dataCadastro: string;
+  ultimoAcesso: string;
+}

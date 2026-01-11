@@ -21,6 +21,7 @@ const navItems = [
   { name: "Cadastro", icon: <AddCircleOutline />, path: '/register-page'},  
   { name: 'Monitoramento', icon: <ImportantDevices />, path: '/monitoring-page' },
   { name: 'Geolacalização', icon: <AssistantOutlined />, path: '/pesquisa-geo' },
+  { name: 'Telegram Users', icon: <People />, path: '/telegram-users' },
   { name: "Análise com IA", icon: <Image src={iaIcon} alt='IA' width={24} height={24} style={{ backgroundColor: '#ffbd00'}}/> ,path: "/analise-ia"}
   //{ name: 'Logs do Sistema', path: '/logs' }, 
 ];
