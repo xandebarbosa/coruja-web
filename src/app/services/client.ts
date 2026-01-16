@@ -5,7 +5,7 @@ import { getSession, signOut } from "next-auth/react";
 // O Next.js se encarrega de redirecionar para o backend via next.config.ts
 const API_BASE_URL = "/api";
 
-const api: AxiosInstance = axios.create({
+export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120000,
   headers: {

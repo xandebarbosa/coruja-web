@@ -125,12 +125,12 @@ export interface GeoSearchFormData {
 }
 
 // Interface do Usuário Telegram
-export interface TelegramUser {
+export interface UsuarioTelegram {
   id: number;
   telegramId: string;
   username: string;
   primeiroNome: string;
-  sobreNome: string;
+  sobrenome: string;
   dataCadastro: string;
   ultimoAcesso: string;
 }

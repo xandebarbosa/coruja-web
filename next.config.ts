@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
         source: '/api/:path((?!auth/.*).*)',
         destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`, // Proxy para o backend
       },
+      // ✅ NOVA REGRA: Proxy para o WebSocket
+      {
+        source: '/ws/:path*',
+        destination: 'http://localhost:8081/ws/:path*', // Backend URL
+      },
     ];
   },
   reactStrictMode: true,

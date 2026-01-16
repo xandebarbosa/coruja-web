@@ -1,4 +1,4 @@
-import { MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates, TelegramUser } from "../types/types";
+import { MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates, UsuarioTelegram } from "../types/types";
 import api from "./client";
 
 export interface PaginationParams {
@@ -92,36 +92,13 @@ class MonitoringService {
     const { page = 0, size = 20, sort = 'dataHora,desc' } = params;
     
     const { data } = await api.get<PaginatedAlertHistory>('/monitoramento/alertas', {
-      params: { page, size, sort }
+      params: { page, size, sort }      
     });
+    console.log('✅ Histórico de alertas recebido', data);
+    
     
     return data;
-  }
-
-  // Busca todos os usuários cadastrados no banco
-  async getTelegramUsers(): Promise<TelegramUser[]> {
-    try {
-      console.log('🤖 Buscando usuários do Telegram');
-      const response  = await api.get('/usuarios-telegram/users');
-      console.log('✅ Usuários recebidos');
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar usuários do Telegram:', error.message);
-      throw error;
-    }
-  }
-
-  // Força a sincronização com a API do Telegram
-  async syncTelegramUsers(): Promise<void> {
-    try {
-      console.log('🔄 Sincronizando usuários do Telegram');
-      await api.get('/usuarios-telegram/sincronizar');
-      console.log('✅ Sincronização iniciada');
-    } catch (error: any) {
-      console.error('❌ Erro ao sincronizar usuários do Telegram:', error.message);
-      throw error;
-    }
-  }
+  }  
 }
 
 export const monitoringService = new MonitoringService();

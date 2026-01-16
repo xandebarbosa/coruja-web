@@ -21,6 +21,7 @@ import AlertPreviewDialog from './components/PreviewDialog';
 import PlacaMercosul from '../../components/PlacaMercosul';
 import SockJS from 'sockjs-client';
 import { toast } from 'react-toastify';
+import { getSession } from 'next-auth/react';
 
 const formatDateTime = (dateTimeString: string) => {
     if (!dateTimeString) return "N/A";
@@ -31,51 +32,59 @@ export default function MonitoramentoRealtimePage() {
     // --- ESTADOS PRINCIPAIS DA PÁGINA ---
     const [rows, setRows] = useState<AlertHistoryRow[]>([]);
     const [loading, setLoading] = useState(true);
-    const [rowCount, setRowCount] = useState(0);    
-    const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
+    const [rowCount, setRowCount] = useState(0);      
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
     
     //Estados para o Dialog de preview
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedRowData, setSelectedRowData] = useState<AlertHistoryRow | null>(null);
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);    
     
     // Estados para as Configurações de Áudio
     // NOVO: Estado para sabermos se o áudio foi "desbloqueado" pelo usuário
     const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
-    const [audioVolume, setAudioVolume] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const savedVolume = localStorage.getItem('audioVolume');
-            return savedVolume ? parseFloat(savedVolume) : 0.5; // Padrão 50%
-        }
-        return 0.5;
-    });
-     // Ao iniciar o estado, tentamos ler o valor salvo. Se não houver, usamos o padrão.
-    const [audioSource, setAudioSource] = useState<string>(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('selectedAudioSource') || '/sounds/siren-alert.mp3';
-        }
-        return '/sounds/siren-alert.mp3';
-    });
-    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);    
+    const [audioVolume, setAudioVolume] = useState<number>(0.5);
+    const [audioSource, setAudioSource] = useState<string>('/sounds/police-operation-siren.mp3');
+
+    // Carrega preferências de áudio do localStorage (apenas no cliente)
+    useEffect(() => {
+        const savedVolume = localStorage.getItem('audioVolume');
+        const savedSource = localStorage.getItem('selectedAudioSource');
+        if (savedVolume) setAudioVolume(parseFloat(savedVolume));
+        if (savedSource) setAudioSource(savedSource);
+    }, []);
     
     // --- REFERÊNCIAS PARA CONTROLE DE EFEITOS ---
     // --- Referências para o alerta sonoro ---
     const audioCooldownRef = useRef(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-    //const sockJsUrl = `${process.env.NEXT_PUBLIC_WS_URL}?access_token=${encodeURIComponent(token)}`;
     
-    // --- Funções para controlar o Dialog ---
-    const handlePreviewClick = (row: AlertHistoryRow) => {
-      setSelectedRowData(row);
-      setIsPreviewOpen(true);
-    };
 
-    const handleClosePreview = () => {
-      setIsPreviewOpen(false);
-    };    
+    // 1. Função de Ordenação Robusta (Aceita Array [ano, mes, dia] ou String ISO)
+    // --- 1. Função de Ordenação (Memoizada para evitar erro do useEffect) ---
+    const sortAlerts = useCallback((alerts: AlertHistoryRow[]): AlertHistoryRow[] => {
+        return [...alerts].sort((a, b) => {
+            const getTime = (dateVal: any, timeVal: any) => {
+                // Caso venha como array [2026, 1, 16] do Java
+                if (Array.isArray(dateVal) && Array.isArray(timeVal)) {
+                    return new Date(
+                        dateVal[0], dateVal[1] - 1, dateVal[2], 
+                        timeVal[0], timeVal[1], (timeVal[2] || 0)
+                    ).getTime();
+                }
+                // Caso venha como string ISO
+                if (typeof dateVal === 'string' && typeof timeVal === 'string') {
+                    return new Date(`${dateVal}T${timeVal}`).getTime();
+                }
+                return 0;
+            };
+
+            const timeA = getTime(a.data, a.hora);
+            const timeB = getTime(b.data, b.hora);
+            return timeB - timeA; // Decrescente (mais novo primeiro)
+        });
+    }, []);
 
     // Função para buscar o histórico paginado da API, com ordenação
     const fetchInitialHistory = useCallback(async () => {
@@ -86,9 +95,11 @@ export default function MonitoramentoRealtimePage() {
                 size: paginationModel.pageSize,
                 sort: 'dataHora,desc' // Ordena por dataHora decrescente
             });
+
             console.log("Data fetchHistory  ==>", data);
-            
-            setRows(data.content || []);
+            // Força a ordenação no frontend também, para garantir
+            const sortedContent = sortAlerts(data.content || []);     
+            setRows(sortedContent);
             setRowCount(data.page?.totalElements || 0);
         } catch (error) {
             console.error("Erro ao buscar histórico de alertas:", error);
@@ -96,27 +107,26 @@ export default function MonitoramentoRealtimePage() {
         } finally {
             setLoading(false);
         }
-    }, [paginationModel]);
+    }, [paginationModel, sortAlerts]);
 
-     // Função para tocar som e notificar
+
+    // --- 3. Tocar Som ---
+    // Função para tocar som e notificar
     const playSoundAndNotify = useCallback((placa: string) => {
         if (isAudioUnlocked && !audioCooldownRef.current && audioRef.current) {
             audioCooldownRef.current = true;
-
             audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(e => console.error("Erro de autoplay do áudio:", e));
+            audioRef.current.play().catch(e => console.error("Autoplay bloqueado:", e));
 
-            // Pausa o som após o tempo definido
             setTimeout(() => {
                 if (audioRef.current) {
                     audioRef.current.pause();
                     audioRef.current.currentTime = 0;
                 }
                 audioCooldownRef.current = false;
-            }, 5000); // 5 segundos de som
+            }, 5000);
 
-            // Usa a placa recebida para criar uma mensagem customizada
-             toast.info(
+            toast.info(
                 <div className="flex items-center gap-3">
                     <Notifications sx={{ color: '#fca311', fontSize: 28 }} />
                     <div>
@@ -138,98 +148,30 @@ export default function MonitoramentoRealtimePage() {
         }
     }, [isAudioUnlocked]);
 
+    
+    // --- Funções para controlar o Dialog ---
+    const handlePreviewClick = (row: AlertHistoryRow) => {
+      setSelectedRowData(row);
+      setIsPreviewOpen(true);
+    };
+
+    const handleClosePreview = () => {
+      setIsPreviewOpen(false);
+    };       
+
     // 1. Busca o histórico inicial e sempre que a paginação muda.
     useEffect(() => {
         fetchInitialHistory();
     }, [fetchInitialHistory]);
     
     // 2. Prepara o objeto de áudio quando as configurações mudam.
+    // Atualiza objeto de áudio quando config muda
     useEffect(() => {
-        // Salva a escolha do usuário no localStorage
-        localStorage.setItem('selectedAudioSource', audioSource);
-        localStorage.setItem('audioVolume', String(audioVolume));
-
-        // Prepara o objeto de áudio com as novas configurações
         audioRef.current = new Audio(audioSource);
         audioRef.current.volume = audioVolume;
-    }, [audioSource, audioVolume]);  
-
-    // Função para lidar com a mudança de som no menu
-    const handleSoundChange = (newSource: string) => {
-        setAudioSource(newSource);
-        setAnchorEl(null); // Fecha o menu
-    };
-
-    // Função para lidar com a mudança de volume
-    const handleVolumeChange = (event: Event, newValue: number | number[]) => {
-        setAudioVolume(newValue as number);
-    };
-
-     // 3. Lógica do WebSocket para receber NOVOS alertas confirmados.
-    useEffect(() => {
-        const client = new Client({
-            webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
-            reconnectDelay: 5000,
-        });
-        
-
-        client.onConnect = () => {
-            console.log('[WebSocket] Conectado ao tópico de alertas confirmados.');
-            // Ouve o tópico que envia APENAS os alertas de placas monitoradas
-            client.subscribe('/topic/confirmed-alerts', (message) => {
-                if (message.body) {
-
-                     // 1. Recebe o novo alerta. 'data' e 'hora' são STRINGS.
-                    const newAlertFromServer: any = JSON.parse(message.body);
-                    console.log('[WebSocket] Alerta bruto recebido:', newAlertFromServer);
-
-                    // =======================================================
-                    // ##          CONVERSÃO E PADRONIZAÇÃO DOS DADOS         ##
-                    // =======================================================
-                    // 2. Transforma as strings de data e hora em arrays de números,
-                    //    para que o formato seja idêntico ao da API REST.
-                    const dateParts = newAlertFromServer.data.split('-').map(Number); // "2025-07-15" -> [2025, 7, 15]
-                    const timeParts = newAlertFromServer.hora.split(':').map(Number); // "10:30:00" -> [10, 30, 0]
-
-                    // 3. Cria um novo objeto com o formato correto
-                    const formattedAlert: AlertHistoryRow = {
-                        ...newAlertFromServer,
-                        data: dateParts,
-                        hora: timeParts,
-                    };
-
-                    // Limpa o timer anterior
-                    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-
-                    // Inicia um novo timer para agrupar as notificações
-                    debounceTimerRef.current = setTimeout(() => {
-                        console.log('Pausa nas mensagens, atualizando a interface...');
-                        // 4. Adiciona o alerta JÁ FORMATADO ao estado da tabela
-                        setRows(currentRows => [formattedAlert, ...currentRows]);
-                        setRowCount(currentCount => currentCount + 1);
-                
-                        playSoundAndNotify(formattedAlert.placa);
-                    }, 1000); // Debounce de 1 segundo
-                
-                    
-
-                    // const newAlert: AlertHistoryRow = JSON.parse(message.body);
-                    // console.log('[WebSocket] Novo alerta confirmado recebido:', newAlert);
-
-                    // // Adiciona o novo alerta no topo da lista na tela
-                    // setRows(currentRows => [newAlert, ...currentRows]);
-                    // setRowCount(currentCount => currentCount + 1);
-                    
-                    
-                    // // Dispara o som e a notificação visual
-                    // playSoundAndNotify(newAlert.placa);
-                }
-            });
-        };
-        client.activate();
-        return () => { if (client.active) client.deactivate(); };
-    }, [playSoundAndNotify]); // A dependência garante que a função de som tenha o estado de permissão atualizado
-
+        localStorage.setItem('selectedAudioSource', audioSource);
+        localStorage.setItem('audioVolume', String(audioVolume));
+    }, [audioSource, audioVolume]); 
 
     // 4. Lógica para desbloquear o áudio na primeira interação do usuário.
     useEffect(() => {
@@ -244,8 +186,118 @@ export default function MonitoramentoRealtimePage() {
         window.addEventListener('click', unlockAudio);
         return () => window.removeEventListener('click', unlockAudio);
     }, [isAudioUnlocked]);
-    
 
+    // Função para lidar com a mudança de som no menu
+    const handleSoundChange = (newSource: string) => {
+        setAudioSource(newSource);
+        setAnchorEl(null); // Fecha o menu
+    };
+
+    // Função para lidar com a mudança de volume
+    const handleVolumeChange = (event: Event, newValue: number | number[]) => {
+        setAudioVolume(newValue as number);
+    };
+
+     // 3. Lógica do WebSocket para receber NOVOS alertas confirmados.
+    useEffect(() => {
+    let client: Client | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+
+    const connectWebSocket = async () => {
+        try {
+            const session = await getSession();
+            const token = session?.accessToken;
+
+            if (!token) {
+                console.warn('⚠️ Token não disponível. Tentando reconectar em 5s...');
+                reconnectTimeout = setTimeout(connectWebSocket, 5000);
+                return;
+            }
+
+            console.log('🔄 Iniciando conexão WebSocket com SockJS...');
+
+            client = new Client({
+                // ✅ CRÍTICO: SEM token na URL
+                webSocketFactory: () => new SockJS('/ws'),
+                
+                // ✅ Token vai APENAS no header do STOMP CONNECT
+                connectHeaders: {
+                    Authorization: `Bearer ${token}`
+                },
+                
+                reconnectDelay: 5000,
+                heartbeatIncoming: 25000,
+                heartbeatOutgoing: 25000,
+                
+                debug: (str) => {
+                    console.log('🔍 STOMP:', str);
+                },
+                
+                onConnect: () => {
+                    console.log('✅ WebSocket Conectado com sucesso!');
+                    
+                    client?.subscribe('/topic/confirmed-alerts', (message) => {
+                        if (message.body) {
+                            try {
+                                const newAlert = JSON.parse(message.body);
+                                console.log('📩 Novo Alerta:', newAlert);
+
+                                if (debounceTimerRef.current) {
+                                    clearTimeout(debounceTimerRef.current);
+                                }
+
+                                debounceTimerRef.current = setTimeout(() => {
+                                    setRows((prevRows) => {
+                                        const updated = [newAlert, ...prevRows];
+                                        return sortAlerts(updated);
+                                    });
+                                    setRowCount(prev => prev + 1);
+                                    playSoundAndNotify(newAlert.placa);
+                                }, 300);
+                            } catch (error) {
+                                console.error('❌ Erro ao processar alerta:', error);
+                            }
+                        }
+                    });
+                },
+                
+                onStompError: (frame) => {
+                    console.error('🔥 Erro STOMP:', frame.headers['message']);
+                    console.error('Frame completo:', frame);
+                },
+                
+                onWebSocketError: (event) => {
+                    console.error('💥 Erro WebSocket:', event);
+                },
+                
+                onDisconnect: () => {
+                    console.warn('⚠️ WebSocket Desconectado');
+                }
+            });
+
+            client.activate();
+            
+        } catch (err) {
+            console.error('💥 Erro ao conectar WebSocket:', err);
+            reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
+    };
+
+    connectWebSocket();
+
+    return () => {
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+        if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+        }
+        if (client && client.active) {
+            console.log('🔌 Desconectando WebSocket...');
+            client.deactivate();
+        }
+    };
+}, [playSoundAndNotify, sortAlerts]);
    
 
     // Solicita permissão para notificação ao carregar
@@ -257,6 +309,8 @@ export default function MonitoramentoRealtimePage() {
 
     // NOVO: Derivamos o alerta mais recente diretamente da lista de 'rows'.
     const mostRecentAlert = rows.length > 0 ? rows[0] : null;
+     console.log('Most Recent Alert ==>', mostRecentAlert);
+     
 
     // Opções de sons disponíveis
     const availableSounds = [
@@ -477,222 +531,228 @@ export default function MonitoramentoRealtimePage() {
         
 
         {/* Main Grid */}
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
+        <div className='p-6 bg-gray-50'>
           {/* Sidebar - Latest Alert */}
-          <div className='lg:col-span-4 xl:col-span-3'>
-            <Card 
-              className="h-full overflow-hidden"
-              sx={{
-                boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-                borderRadius: '16px',
-                border: '1px solid rgba(0,0,0,0.06)',
-                position: 'relative',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '4px',
-                  background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
-                }
-              }}
-            >
-              <Box 
-                sx={{ 
-                  background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)',
-                  padding: '20px 24px',
-                  color: '#14213d'
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Notifications sx={{ fontSize: 24 }} />
-                  <Typography variant="h6" className="font-bold">
-                    Última Passagem
-                  </Typography>
-                </div>
-                <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 500 }}>
-                  Atualização em tempo real
-                </Typography>
-              </Box>
-              
-              <CardContent className="p-6">
-                {mostRecentAlert ? (
-                  <div className="space-y-5">
-                    {/* Placa */}
-                    <Box>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: '#6c757d',
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                          mb: 1.5
-                        }}
-                      >
-                        <DirectionsCar sx={{ fontSize: 16 }} />
-                        Placa Identificada
-                      </Typography>
-                      <PlacaMercosul placa={mostRecentAlert.placa} />
-                    </Box>
-                    
-                    {/* Stats Grid */}
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 2,
-                        p: 2,
-                        bgcolor: '#f8f9fa',
-                        borderRadius: 2,
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                          Data
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
-                          {new Date(mostRecentAlert.data[0], mostRecentAlert.data[1] - 1, mostRecentAlert.data[2]).toLocaleDateString('pt-BR')}
-                        </Typography>
-                      </Box>
-                      
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
-                          Hora
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
-                          {[
-                            String(mostRecentAlert.hora[0]).padStart(2, '0'), 
-                            String(mostRecentAlert.hora[1]).padStart(2, '0'), 
-                          ].join(':')}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Divider />
-
-                    {/* Location Info */}
-                    <Box>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: '#6c757d',
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 0.5,
-                          mb: 1
-                        }}
-                      >
-                        <LocationOn sx={{ fontSize: 16 }} />
-                        Localização
-                      </Typography>
-                      <Box
-                        sx={{
-                          bgcolor: alpha('#fca311', 0.1),
-                          p: 2,
-                          borderRadius: 2,
-                          borderLeft: '4px solid #fca311'
-                        }}
-                      >
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d', mb: 1 }}>
-                          {mostRecentAlert.rodovia} KM {mostRecentAlert.km}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {mostRecentAlert.praca} • {mostRecentAlert.sentido}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Divider />
-
-                    {/* Vehicle Details */}
-                    <Box className="space-y-3">
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: '#6c757d',
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                          display: 'block',
-                          mb: 1
-                        }}
-                      >
-                        Dados do Veículo
-                      </Typography>
-                      
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                          Modelo
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
-                          {mostRecentAlert?.placaMonitorada?.marcaModelo}
-                        </Typography>
-                      </Box>
-                      
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                          Cor
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
-                          {mostRecentAlert?.placaMonitorada?.cor}
-                        </Typography>
-                      </Box>
-
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                          Motivo do Monitoramento
-                        </Typography>
-                        <Chip 
-                          label={mostRecentAlert?.placaMonitorada?.motivo} 
-                          size="small"
-                          sx={{
-                            bgcolor: '#fff3cd',
-                            color: '#856404',
-                            fontWeight: 600,
-                            fontSize: '12px'
-                          }}
-                        />
-                      </Box>
-                      
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                          Interessado
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
-                          {mostRecentAlert?.placaMonitorada?.interessado}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </div>
-                ) : (
-                  <Box 
+          
+        <Card 
+        className="overflow-hidden max-w-7xl mx-auto"
+        sx={{
+          boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+          borderRadius: '16px',
+          border: '1px solid rgba(0,0,0,0.06)',
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '4px',
+            background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
+          }
+        }}
+      >
+        {/* Header */}
+        <Box 
+          sx={{ 
+            background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)',
+            padding: '20px 24px',
+            color: '#14213d'
+          }}
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <Notifications sx={{ fontSize: 24 }} />
+            <Typography variant="h6" className="font-bold">
+              Última Passagem
+            </Typography>
+          </div>
+          <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 500 }}>
+            Atualização em tempo real
+          </Typography>
+        </Box>
+        
+        <CardContent className="p-6">
+          {mostRecentAlert ? (
+            <div className="space-y-6">
+              {/* Primeira Linha: Placa e Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Placa */}
+                <Box>
+                  <Typography 
+                    variant="caption" 
                     sx={{ 
+                      color: '#6c757d',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      minHeight: '400px',
-                      textAlign: 'center',
-                      color: '#adb5bd'
+                      gap: 0.5,
+                      mb: 1.5
                     }}
                   >
-                    <Notifications sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      Aguardando novos alertas...
+                    <DirectionsCar sx={{ fontSize: 16 }} />
+                    Placa Identificada
+                  </Typography>
+                  <PlacaMercosul placa={mostRecentAlert.placa} />
+                </Box>
+                
+                {/* Stats Grid */}
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 2,
+                    p: 2,
+                    bgcolor: '#f8f9fa',
+                    borderRadius: 2,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      Data
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
+                      {new Date(mostRecentAlert.data[0], mostRecentAlert.data[1] - 1, mostRecentAlert.data[2]).toLocaleDateString('pt-BR')}
                     </Typography>
                   </Box>
-                )}
-              </CardContent>
-            </Card>
+                  
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      Hora
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d' }}>
+                      {[
+                        String(mostRecentAlert.hora[0]).padStart(2, '0'), 
+                        String(mostRecentAlert.hora[1]).padStart(2, '0'), 
+                      ].join(':')}
+                    </Typography>
+                  </Box>
+                </Box>
+              </div>
+
+              <Divider />
+
+              {/* Segunda Linha: Localização */}
+              <Box>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#6c757d',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    mb: 1
+                  }}
+                >
+                  <LocationOn sx={{ fontSize: 16 }} />
+                  Localização
+                </Typography>
+                <Box
+                  sx={{
+                    bgcolor: alpha('#fca311', 0.1),
+                    p: 2,
+                    borderRadius: 2,
+                    borderLeft: '4px solid #fca311'
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#14213d', mb: 1 }}>
+                    {mostRecentAlert.rodovia} KM {mostRecentAlert.km}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {mostRecentAlert.praca} • {mostRecentAlert.sentido}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Divider />
+
+              {/* Terceira Linha: Dados do Veículo - Layout Horizontal */}
+              <Box>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#6c757d',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    display: 'block',
+                    mb: 2
+                  }}
+                >
+                  Dados do Veículo
+                </Typography>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Modelo
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                      {mostRecentAlert?.placaMonitorada?.marcaModelo}
+                    </Typography>
+                  </Box>
+                  
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Cor
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                      {mostRecentAlert?.placaMonitorada?.cor}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                      Motivo
+                    </Typography>
+                    <Chip 
+                      label={mostRecentAlert?.placaMonitorada?.motivo} 
+                      size="small"
+                      sx={{
+                        bgcolor: '#fff3cd',
+                        color: '#856404',
+                        fontWeight: 600,
+                        fontSize: '12px'
+                      }}
+                    />
+                  </Box>
+                  
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                      Interessado
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
+                      {mostRecentAlert?.placaMonitorada?.interessado}
+                    </Typography>
+                  </Box>
+                </div>
+              </Box>
             </div>
+          ) : (
+            <Box 
+              sx={{ 
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '200px',
+                textAlign: 'center',
+                color: '#adb5bd'
+              }}
+            >
+              <Notifications sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Aguardando novos alertas...
+              </Typography>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+            
         </div>
           
           {/* Main Content */}
@@ -892,12 +952,6 @@ export default function MonitoramentoRealtimePage() {
                   </Box>
               </CardContent>
               </Card>
-                                    
-                  
-                 
-                
-              
-            
             
             <AlertPreviewDialog
                 open={isPreviewOpen}

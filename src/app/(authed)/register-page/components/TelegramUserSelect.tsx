@@ -1,5 +1,6 @@
 import { monitoringService } from "@/app/services";
-import { TelegramUser } from "@/app/types/types";
+import { TelegramService } from "@/app/services/telegram";
+import { UsuarioTelegram } from "@/app/types/types";
 import { Autocomplete, CircularProgress, TextField } from "@mui/material";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
@@ -11,30 +12,43 @@ interface Props {
 
 export default function TelegramUserSelect({ value, onChange }: Props) {
     const [open, setOpen] = useState(false);
-    const [options, setOptions] = useState<TelegramUser[]>([]);
+    const [options, setOptions] = useState<UsuarioTelegram[]>([]);
     const [loading, setLoading] = useState(false);
 
-    //Carrega os usuários quando o dropdown abre
-    useEffect(() => {
-        if (!open) return;
+    // Carrega os usuários quando o dropdown abre
+  useEffect(() => {
+    let active = true; // Flag para evitar setar estado se o componente desmontar
 
-        // Evita recarregar se já tem opcões
-        if (options.length > 0) return;
-        setLoading(true);
+    if (!open) return;
+    
+    // Evita recarregar se já tem opções populadas
+    if (options.length > 0) return;
 
-        monitoringService.getTelegramUsers()
-            .then(users => {
-                setOptions(users);
-                toast.success("Usuários do Telegram carregados com sucesso!");
-            })
-            .catch(error => {
-                console.error("Erro ao carregar usuários do Telegram:", error);
-                toast.error("Erro ao carregar usuários do Telegram");
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [open, options.length]);
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        // CORREÇÃO AQUI: Adicionado () para executar a função
+        const users = await TelegramService.getAll();
+
+        if (active) {
+          setOptions(users);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar usuários do Telegram:", error);
+        toast.error("Erro ao buscar usuários do Telegram.");
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUsers();
+
+    return () => {
+      active = false;
+    };
+  }, [open, options.length]);
 
     // Encontra o objeto usuário correspondente ao ID selecionado (para exibir corretamente)
     const selectedUser = options.find(user => user.telegramId === value) || null;
@@ -45,7 +59,7 @@ export default function TelegramUserSelect({ value, onChange }: Props) {
             onOpen={() => setOpen(true)}
             onClose={() => setOpen(false)}
             isOptionEqualToValue={(option, value) => option.telegramId === value.telegramId}
-            getOptionLabel={(option) => `${option.primeiroNome} ${option.sobreNome || ''} (@${option.username || 'sem_user'})`}
+            getOptionLabel={(option) => `${option.primeiroNome} ${option.sobrenome || ''} (@${option.username || 'sem_user'})`}
             options={options}
             loading={loading}
             // O valor do Autocomplete espera o OBJETO inteiro, mas controlamos pelo ID
