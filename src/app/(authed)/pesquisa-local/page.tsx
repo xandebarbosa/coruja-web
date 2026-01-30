@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { radarsService } from '../../services'
-import { LocalSearchParams } from '../../types/types';
+import { LocalSearchParams, RadarsDTO } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
 import { Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
 import { exportToExcel } from '../../components/ExportExcel';
@@ -15,6 +15,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ClearIcon from '@mui/icons-material/Clear';
+import { RodoviaDTO } from '@/app/services/radars';
 //import { ExportExcel } from '../components/ExportExcel';
 
 // =============================================
@@ -23,29 +24,31 @@ import ClearIcon from '@mui/icons-material/Clear';
 
 interface FilterState {
   concessionaria: string;
-  rodovia: string;
-  praca: string;
+  rodovia: string; // Nome da rodovia (para enviar ao back)
+  rodoviaId: number | ''; // ID da rodovia (para buscar KMs)
   km: string;
   sentido: string;
+  praca: string;
   data: string;
   horaInicial: string;
   horaFinal: string;
 }
 
 interface OptionsState {
-  rodovias: string[];
+  rodovias: RodoviaDTO[]; // Agora guarda objetos {id, nome}
   kms: string[];
   sentidos: string[];
-  pracas: string[];
+  pracas: string[]; // Se tiver endpoint de praças, use aqui
 }
 
 const INITIAL_FILTERS: FilterState = {
   concessionaria: '',
   rodovia: '',
-  praca: '',
+  rodoviaId: '',
   km: '',
   sentido: '',
-  data: '',
+  praca: '',
+  data: new Date().toISOString().split('T')[0], // Data de hoje como padrão
   horaInicial: '',
   horaFinal: '',
 };
@@ -138,247 +141,199 @@ const columns: GridColDef[] = [
 ];
 
 export default function ConsultaLocal() {
-  // 1. Estado do Formulário (O que o usuário vê e digita)
+ // Estados
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
-
-  // 2. Estado dos Filtros ATIVOS (O que realmente foi buscado por último)
-  // É esse estado que a paginação e a exportação vão usar!
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
-  
   const [options, setOptions] = useState<OptionsState>(INITIAL_OPTIONS);
+  
   const [loading, setLoading] = useState(false);
-  const [optionsLoading, setOptionsLoading] = useState(false);
-  const [kmsLoading, setKmsLoading] = useState(false); // Novo estado de loading para os KMs
-  const [rows, setRows] = useState<any[]>([]); // Tipado como any[] para evitar erro no getRowId por enquanto
+  const [loadingRodovias, setLoadingRodovias] = useState(false);
+  const [loadingKms, setLoadingKms] = useState(false);
+  
+  const [rows, setRows] = useState<RadarsDTO[]>([]);
   const [rowCount, setRowCount] = useState(0);
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
-  const [exporting, setExporting] = useState(false);  
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 20 });
+  const [exporting, setExporting] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  //useEffect para buscar as opções quando a concessionária muda
+  // 1. Carrega opções estáticas e iniciais ao montar
   useEffect(() => {
-    const fetchOptions = async () => {
-      if (!filters.concessionaria) {
-        setOptions({ rodovias: [], pracas: [], kms: [], sentidos: []});
+    const initOptions = async () => {
+      // Sentidos estáticos
+      const sentidos = await radarsService.getSentidos();
+      setOptions(prev => ({ ...prev, sentidos }));
+      
+      // Carrega Rodovias (Independente de concessionária por enquanto, ou filtre se backend suportar)
+      setLoadingRodovias(true);
+      try {
+        const rodovias = await radarsService.getRodovias();
+        setOptions(prev => ({ ...prev, rodovias }));
+      } catch (err) {
+        toast.error("Erro ao carregar rodovias.");
+      } finally {
+        setLoadingRodovias(false);
+      }
+    };
+    initOptions();
+  }, []);
+
+  // 2. Carrega KMs quando a Rodovia muda
+  useEffect(() => {
+    const fetchKms = async () => {
+      if (!filters.rodoviaId) {
+        setOptions(prev => ({ ...prev, kms: [] }));
         return;
       }
-      setOptionsLoading(true);
-
+      
+      setLoadingKms(true);
       try {
-        const data = await radarsService.getFilterOptions(filters.concessionaria);
-        // Inicializamos os KMs como uma lista vazia
-        setOptions({ ...data, kms: [] });
+        // Busca KMs usando o ID da rodovia
+        const kmsData = await radarsService.getKmsByRodoviaId(Number(filters.rodoviaId));
+        setOptions(prev => ({ ...prev, kms: kmsData.map(k => k.valor) }));
       } catch (error) {
-        console.log(error);
-        toast.error("Não foi possível carregar as opções de filtro por concessionária.");
-        alert('Não foi possível carregar as opções de filtro.');        
+        console.error(error);
+        toast.error("Erro ao carregar KMs.");
       } finally {
-        setOptionsLoading(false);
+        setLoadingKms(false);
       }
     };
 
-    fetchOptions();
-  }, [filters.concessionaria]); // Roda sempre que o valor de 'concessionaria' muda
+    fetchKms();
+  }, [filters.rodoviaId]);
 
-  // =================================================================
-    // ##  useEffect PARA OS FILTROS DEPENDENTES
-    // =================================================================
-    useEffect(() => {
-        const fetchKms = async () => {
-            // Só busca se tivermos uma concessionária E uma rodovia selecionada
-            if (!filters.concessionaria || !filters.rodovia) {
-                setOptions(prev => ({ ...prev, kms: [] })); // Limpa os KMs se a rodovia for desmarcada
-                return;
-            }
-            setKmsLoading(true);
-            try {
-                const kmsData = await radarsService.getKmsByRodovia(filters.concessionaria, filters.rodovia);
-                setOptions(prev => ({ ...prev, kms: kmsData }));
-            } catch (error) {
-                console.error("Erro ao buscar KMs:", error);
-                toast.error("Erro ao buscar KMs para a rodovia selecionada.");
-                setOptions(prev => ({ ...prev, kms: [] })); // Limpa em caso de erro
-            } finally {
-                setKmsLoading(false);
-            }
-        };
 
-        fetchKms();
-    }, [filters.rodovia]); // Este hook RODA SEMPRE QUE a rodovia for alterada
-
-    // HANDLERS DO FORMULÁRIO
-    const handleSelectChange = (e: SelectChangeEvent) => {
-      const { name, value } = e.target;
-      // Começamos com uma cópia dos filtros atuais e atualizamos o campo que mudou
-      const newFilters = {
-        ...filters,
-        [name]: value,
-      };
-
-    // Agora, aplicamos as regras de reset em cascata
+  // HANDLERS
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
     
-    // REGRA 1: Se a CONCESSIONÁRIA mudou, limpe todos os filtros de LOCALIZAÇÃO dependentes.
-    // Mas mantenha os filtros de data e hora!
-    if (name === 'concessionaria') {
-      newFilters.rodovia = '';
-      newFilters.praca = '';
-      newFilters.km = '';
-      newFilters.sentido = '';
-      // Limpa os resultados da busca anterior
-      setRows([]);
-      setRowCount(0);
-      setActiveFilters(null); // Reseta a busca ativa se mudar concessionária
-      setHasSearched(false);
+    // Lógica especial para Rodovia (que tem ID e Nome)
+    if (name === 'rodoviaId') {
+      const selectedRodovia = options.rodovias.find(r => r.id === Number(value));
+      setFilters(prev => ({
+        ...prev,
+        rodoviaId: value as unknown as number,
+        rodovia: selectedRodovia ? selectedRodovia.nome : '', // Guarda o nome para enviar na busca
+        km: '' // Reseta KM ao mudar rodovia
+      }));
+    } else {
+      setFilters(prev => ({ ...prev, [name]: value }));
     }
-
-    // REGRA 2: Se a RODOVIA mudou, limpe apenas o KM, que depende dela.
-    if (name === 'rodovia') {
-      newFilters.km = '';
-    }
-    
-    // Atualiza o estado com todos os filtros (o que mudou e o que foi resetado)
-    setFilters(newFilters);
   };
 
-  // NOVO: Handler específico para os componentes TextField (data/hora)
   const handleTextFieldChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
-  
-  
-  // =================================================================
-  // FUNÇÃO DE BUSCA ISOLADA (Usa filtersToUse, não o state 'filters')
-  // =================================================================
+
+  // BUSCA
   const fetchRadars = useCallback(async (page: number, size: number, filtersToUse: FilterState) => {
     setLoading(true);
-
-    // DEBUG: Verifique no Console do Navegador (F12) se "page" muda ao clicar na paginação
-    console.log(`📡 Buscando dados: Página=${page}, Tamanho=${size}`, filtersToUse);
-
-    const paramsToSend: LocalSearchParams = {
+    
+    // Mapeia estado local para interface do Service
+    const params: LocalSearchParams = {
       page,
       pageSize: size,
       concessionaria: filtersToUse.concessionaria,
-      rodovia: filtersToUse.concessionaria !== 'eixo' ? filtersToUse.rodovia : undefined,
-      km: filtersToUse.concessionaria !== 'eixo' ? filtersToUse.km : undefined,
-      praca: filtersToUse.concessionaria === 'eixo' ? filtersToUse.praca : undefined,
-      sentido: filtersToUse.sentido || undefined,
-      data: filtersToUse.data || undefined,
-      horaInicial: filtersToUse.horaInicial || undefined,
-      horaFinal: filtersToUse.horaFinal || undefined,
+      data: filtersToUse.data,
+      horaInicial: filtersToUse.horaInicial,
+      horaFinal: filtersToUse.horaFinal,
+      rodovia: filtersToUse.rodovia,
+      km: filtersToUse.km,
+      sentido: filtersToUse.sentido,
+      praca: filtersToUse.praca
     };
 
     try {
-      const data = await radarsService.searchByLocal(paramsToSend);      
-
-      // DEBUG: Verifique se o backend retornou conteúdo
-      console.log("✅ Dados recebidos:", data);
-      if (data && data.content) {
-          setRows(data.content);
-          // Proteção contra totalElements nulo
-          setRowCount(data.page?.totalElements || 0); 
+      const response = await radarsService.searchByLocal(params);
+      
+      if (response && response.content) {
+        setRows(response.content);
+        setRowCount(response.page?.totalElements || 0);
       } else {
-          setRows([]);
-          setRowCount(0);
+        setRows([]);
+        setRowCount(0);
       }
     } catch (error) {
-      console.error("❌ Erro na busca:", error);      
-      toast.error("Erro ao buscar dados consulta por Local.");
+      // Toast já exibido no service ou aqui se preferir
       setRows([]);
+      setRowCount(0);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // =================================================================
-  // AÇÃO DO BOTÃO BUSCAR
-  // =================================================================
+  // Botão Buscar
   const handleSearchClick = () => {
-    if (!filters.concessionaria) {
-      toast.warning('Por favor, selecione uma concessionária.');
+    // Validação de Campos Obrigatórios (Data e Hora são exigidos pelo BFF agora)
+    if (!filters.data) {
+      toast.warning("A Data é obrigatória.");
       return;
     }
+    // Hora pode ser opcional dependendo da regra de negócio do backend refatorado,
+    // mas se o backend exigir, valide aqui:
+    // if (!filters.horaInicial || !filters.horaFinal) { toast.warning("Informe o intervalo de horário."); return; }
 
-    // 1. Salva o "Snapshot" dos filtros atuais
     setActiveFilters(filters);
     setHasSearched(true);
-    // 2. Reseta para a primeira página. 
-    // OBS: Isso vai disparar o useEffect abaixo automaticamente.
     setPaginationModel(prev => ({ ...prev, page: 0 }));
-
-    // Pequena otimização: se já estiver na página 0, o useEffect pode não disparar pela mudança de página,
-    // mas vai disparar pela mudança do activeFilters. Então tudo certo.
   };
-  
-  // =================================================================
-  // EFFECT DA PAGINAÇÃO  
-  // =================================================================
+
+  // Efeito de Paginação
   useEffect(() => {
-    // Só busca se tivermos filtros ativos (usuário clicou em buscar pelo menos uma vez)
     if (activeFilters) {
       fetchRadars(paginationModel.page, paginationModel.pageSize, activeFilters);
     }
   }, [paginationModel, activeFilters, fetchRadars]);
 
-  // =================================================================
-  // EXPORTAÇÃO (Agora usa activeFilters para consistência)
-  // =================================================================
-  const handleExport = async () => {
-    // Usa activeFilters se existir (consistência com a tabela), senão usa filters (se o usuário não buscou ainda)
-    const filtersToExport = activeFilters || filters;
-
-    if (!filtersToExport.concessionaria) {
-      alert('Por favor, selecione uma concessionária para exportar.');
-      return;
-    }
-    
-    setExporting(true);
-    try {
-      const paramsToExport = {
-        concessionaria: filtersToExport.concessionaria,
-        rodovia: filtersToExport.concessionaria !== 'eixo' ? filtersToExport.rodovia : undefined,
-        km: filtersToExport.concessionaria !== 'eixo' ? filtersToExport.km : undefined,
-        praca: filtersToExport.concessionaria === 'eixo' ? filtersToExport.praca : undefined,
-        sentido: filtersToExport.sentido || undefined,
-        data: filtersToExport.data || undefined,
-        horaInicial: filtersToExport.horaInicial || undefined,
-        horaFinal: filtersToExport.horaFinal || undefined,
-      };
-
-      const allData = await radarsService.searchAllByLocalForExport(paramsToExport);
-
-      if (!allData || allData.length === 0) {
-        toast.warn("Nenhum dado encontrado para exportar com os filtros selecionados.");
-        return;
-      }
-
-      exportToExcel(allData, "Relatorio_Radares");
-      toast.success("Relatório exportado com sucesso!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao gerar o relatório.");
-    } finally {
-      setExporting(false);
-    }
-  };
-
+  // Limpar
   const handleClear = () => {
     setFilters(INITIAL_FILTERS);
     setActiveFilters(null);
     setRows([]);
     setRowCount(0);
     setHasSearched(false);
-    setPaginationModel({ page: 0, pageSize: 10 });
-    setOptions(INITIAL_OPTIONS);
-    toast.info("Filtros limpos com sucesso!");
+  };
+
+  // Exportar
+  const handleExport = async () => {
+    const filtersToExport = activeFilters || filters;
+    if (!filtersToExport.concessionaria) {
+      toast.warning('Selecione uma concessionária para exportar.');
+      return;
+    }
+    
+    setExporting(true);
+    try {
+      // Mapeamento manual para LocalSearchParams
+      const params: LocalSearchParams = {
+        concessionaria: filtersToExport.concessionaria,
+        data: filtersToExport.data,
+        horaInicial: filtersToExport.horaInicial,
+        horaFinal: filtersToExport.horaFinal,
+        rodovia: filtersToExport.rodovia,
+        km: filtersToExport.km,
+        sentido: filtersToExport.sentido,
+        praca: filtersToExport.praca,
+        page: 0,
+        pageSize: 1000 // Tamanho grande para exportação
+      };
+
+      const data = await radarsService.searchAllByLocalForExport(params);
+      if (data.length > 0) {
+        exportToExcel(data, `Relatorio_Radares_${filtersToExport.concessionaria}`);
+        toast.success("Download iniciado!");
+      } else {
+        toast.info("Sem dados para exportar.");
+      }
+    } catch (err) {
+      toast.error("Erro na exportação.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6'>
-      {/* Header Card */}
+      {/* Header */}
       <Card 
         className='mb-6 overflow-hidden'
         sx={{
@@ -406,9 +361,9 @@ export default function ConsultaLocal() {
           </div>
         </CardContent>
       </Card>
-      
-      {/* Filters Card */}
-      <Card className="mb-6 shadow-lg">
+
+      {/* Filtros */}
+      <Card className="mb-6 shadow-md">
         <CardContent className="p-6">
           <div className='flex items-center gap-2 mb-4'>
             <FilterListIcon sx={{ color: '#fca311', fontSize: 24 }} />
@@ -416,11 +371,12 @@ export default function ConsultaLocal() {
               Filtros de Pesquisa
             </Typography>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            
+            {/* Concessionária */}
             <FormControl 
-              fullWidth 
-              size="small"
+              size="small" 
+              fullWidth
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '&:hover fieldset': { borderColor: '#fca311' },
@@ -431,112 +387,83 @@ export default function ConsultaLocal() {
             >
               <InputLabel id="concessionaria-select-label">Concessionária</InputLabel>
               <Select
-                labelId="concessionaria-select-label"
-                label="Concessionária"
                 name="concessionaria"
                 value={filters.concessionaria}
+                label="Concessionária"
                 onChange={handleSelectChange}
               >
-                <MenuItem value=""><em>Selecione a Concessionária</em></MenuItem>
+                <MenuItem value=""><em>Todas</em></MenuItem>
                 <MenuItem value="cart">Cart</MenuItem>
                 <MenuItem value="eixo">Eixo</MenuItem>
                 <MenuItem value="rondon">Rondon</MenuItem>
                 <MenuItem value="entrevias">Entrevias</MenuItem>
               </Select>
-            </FormControl>
+            </FormControl>            
 
-            {filters.concessionaria === 'eixo' ? (
-              <>
-                <FormControl 
-                  fullWidth 
-                  size="small" 
-                  disabled={optionsLoading || !filters.concessionaria}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '&:hover fieldset': { borderColor: '#fca311' },
-                      '&.Mui-focused fieldset': { borderColor: '#fca311' },
-                    },
-                    '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
-                  }}
-                >
-                  <InputLabel id="local-select-label">Local</InputLabel>
-                  <Select
-                    labelId="local-select-label"
-                    label="Local"
-                    name="praca"
-                    value={filters.praca}
-                    onChange={handleSelectChange}
-                  >
-                    <MenuItem value="">
-                      <em>{optionsLoading ? 'Buscando...' : 'Todos os Locais'}</em>
-                    </MenuItem>
-                    {options?.pracas?.map(local => <MenuItem key={local} value={local}>{local}</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <Box /> 
-              </>
-            ) : (
-              <>
-                <FormControl 
-                  fullWidth 
-                  size="small" 
-                  disabled={optionsLoading || !filters.concessionaria}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '&:hover fieldset': { borderColor: '#fca311' },
-                      '&.Mui-focused fieldset': { borderColor: '#fca311' },
-                    },
-                    '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
-                  }}
-                >
-                  <InputLabel id="rodovia-select-label">Rodovia</InputLabel>
-                  <Select 
-                    name="rodovia" 
-                    value={filters.rodovia} 
-                    onChange={handleSelectChange} 
-                    label="Rodovia"
-                    IconComponent={optionsLoading ? () => <CircularProgress size={15} sx={{ marginRight: '12px'}}/> : undefined}
-                  >
-                    <MenuItem value="">
-                      <em>{optionsLoading ? 'Buscando...' : 'Todas as Rodovias'}</em>
-                    </MenuItem>
-                    {options.rodovias.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                  </Select>
-                </FormControl>
-
-                <FormControl 
-                  fullWidth 
-                  size="small" 
-                  disabled={optionsLoading || !filters.rodovia || kmsLoading}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      '&:hover fieldset': { borderColor: '#fca311' },
-                      '&.Mui-focused fieldset': { borderColor: '#fca311' },
-                    },
-                    '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
-                  }}
-                >
-                  <InputLabel id="km-select-label">KM</InputLabel>
-                  <Select 
-                    name="km" 
-                    value={filters.km} 
-                    onChange={handleSelectChange} 
-                    label="KM"
-                    IconComponent={kmsLoading ? () => <CircularProgress size={20} sx={{ marginRight: '12px' }} /> : undefined}
-                  >
-                    <MenuItem value="">
-                      <em>{kmsLoading ? 'Buscando...' : 'Todos os KMs'}</em>
-                    </MenuItem>
-                    {options.kms.map(k => <MenuItem key={k} value={k}>{k}</MenuItem>)}
-                  </Select>
-                </FormControl>
-              </>
-            )}
-
+            {/* Rodovia (Carregada do Back) */}
             <FormControl 
               fullWidth 
               size="small" 
-              disabled={optionsLoading || !filters.concessionaria}
+              disabled={loadingRodovias}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover fieldset': { borderColor: '#fca311' },
+                  '&.Mui-focused fieldset': { borderColor: '#fca311' },
+                },
+                '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
+              }}
+            >
+              <InputLabel id="rodovia-select-label">Rodovia</InputLabel>
+              <Select
+                name="rodoviaId" // Usa ID internamente
+                value={String(filters.rodoviaId)} // Converte para string para o Select
+                label="Rodovia"
+                onChange={handleSelectChange}
+                IconComponent={loading ? () => <CircularProgress size={15} sx={{ marginRight: '12px'}}/> : undefined}
+              >
+                <MenuItem value="">
+                  <em>{loading ? 'Buscando...' : 'Todas'}</em>
+                </MenuItem>
+                {options.rodovias.map(r => (
+                  <MenuItem key={r.id} value={r.id}>{r.nome}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* KM (Depende da Rodovia) */}
+            <FormControl 
+              size="small" 
+              fullWidth 
+              disabled={!filters.rodoviaId || loadingKms}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&:hover fieldset': { borderColor: '#fca311' },
+                  '&.Mui-focused fieldset': { borderColor: '#fca311' },
+                },
+                '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
+              }}
+            >
+              <InputLabel id="km-select-label">KM</InputLabel>
+              <Select
+                name="km"
+                value={filters.km}
+                label="KM"
+                onChange={handleSelectChange}
+                IconComponent={loading ? () => <CircularProgress size={20} sx={{ marginRight: '12px' }} /> : undefined}
+              >
+                <MenuItem value=""><em>
+                  {loading ? 'Buscando...' : 'Todos os KMs'}</em>
+                </MenuItem>
+                {options.kms.map(k => (
+                  <MenuItem key={k} value={k}>{k}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Sentido */}
+            <FormControl 
+              size="small" 
+              fullWidth
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '&:hover fieldset': { borderColor: '#fca311' },
@@ -546,21 +473,29 @@ export default function ConsultaLocal() {
               }}
             >
               <InputLabel id="sentido-select-label">Sentido</InputLabel>
-              <Select name="sentido" value={filters.sentido} onChange={handleSelectChange} label="Sentido">
-                <MenuItem value=""><em>{optionsLoading ? 'Buscando...' : 'Todos os Sentidos'}</em></MenuItem>
-                {options.sentidos.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              <Select
+                name="sentido"
+                value={filters.sentido}
+                label="Sentido"
+                onChange={handleSelectChange}
+              >
+                <MenuItem value=""><em>{loading ? 'Buscando...' : 'Todos os Sentidos'}</em></MenuItem>
+                {options.sentidos.map(s => (
+                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                ))}
               </Select>
             </FormControl>
-                    
-            <TextField 
-              label="Data" 
-              type="date" 
-              name="data" 
-              value={filters.data} 
-              onChange={handleTextFieldChange} 
-              InputLabelProps={{ shrink: true }} 
-              size="small" 
-              fullWidth 
+
+            {/* Data (Obrigatória) */}
+            <TextField
+              label="Data *"
+              type="date"
+              name="data"
+              size="small"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={filters.data}
+              onChange={handleTextFieldChange}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '&:hover fieldset': { borderColor: '#fca311' },
@@ -569,15 +504,17 @@ export default function ConsultaLocal() {
                 '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
               }}
             />
-            <TextField 
-              label="Hora Inicial" 
-              type="time" 
-              name="horaInicial" 
-              value={filters.horaInicial} 
-              onChange={handleTextFieldChange} 
-              InputLabelProps={{ shrink: true }} 
-              size="small" 
-              fullWidth 
+
+            {/* Horários */}
+            <TextField
+              label="Hora Inicial"
+              type="time"
+              name="horaInicial"
+              size="small"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={filters.horaInicial}
+              onChange={handleTextFieldChange}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '&:hover fieldset': { borderColor: '#fca311' },
@@ -586,15 +523,15 @@ export default function ConsultaLocal() {
                 '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
               }}
             />
-            <TextField 
-              label="Hora Final" 
-              type="time" 
-              name="horaFinal" 
-              value={filters.horaFinal} 
-              onChange={handleTextFieldChange} 
-              InputLabelProps={{ shrink: true }} 
-              size="small" 
-              fullWidth 
+            <TextField
+              label="Hora Final"
+              type="time"
+              name="horaFinal"
+              size="small"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={filters.horaFinal}
+              onChange={handleTextFieldChange}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   '&:hover fieldset': { borderColor: '#fca311' },
@@ -605,14 +542,14 @@ export default function ConsultaLocal() {
             />
           </div>
 
-          <div className="mt-6 flex justify-between items-center gap-4">
-            <div className='justify-self-start gap-4'>
-              <Button
-              variant='contained'
+          {/* Botões de Ação */}
+          <div className="mt-6 flex gap-3">
+            <Button 
+              variant="contained" 
+              color="primary" 
+              startIcon={loading ? <CircularProgress size={20} color="inherit"/> : <SearchIcon />}
               onClick={handleSearchClick}
               disabled={loading}
-              size="large"
-              startIcon={<SearchIcon />}
               sx={{
                 minWidth: '160px',
                 bgcolor: '#fca311',
@@ -635,13 +572,13 @@ export default function ConsultaLocal() {
             >
               {loading ? 'Buscando...' : 'Buscar'}
             </Button>
-            <Button
-                variant='outlined'
-                onClick={handleClear}
-                disabled={loading || exporting}
-                size="large"
-                startIcon={<ClearIcon />}
-                sx={{
+            
+            <Button 
+              variant="outlined" 
+              startIcon={<ClearIcon />}
+              onClick={handleClear}
+              disabled={loading}
+              sx={{
                   minWidth: '140px',
                   borderColor: '#3f51b5',
                   color: '#5c6bc0',
@@ -661,17 +598,16 @@ export default function ConsultaLocal() {
                   },
                   transition: 'all 0.3s ease',
                 }}
-              >
-                Limpar
-              </Button>
-            </div>
-            
+            >
+              Limpar
+            </Button>
+
             <Button 
-              variant="contained"
-              onClick={handleExport}
-              disabled={exporting || loading || !hasSearched}
-              size="large"
+              variant="contained" 
+              color="success" 
               startIcon={exporting ? <CircularProgress size={20} sx={{ color: 'white' }} /> : <FileDownloadIcon />}
+              onClick={handleExport}
+              disabled={exporting || !hasSearched}
               sx={{
                 minWidth: '200px',
                 bgcolor: '#059669',
@@ -695,37 +631,23 @@ export default function ConsultaLocal() {
               {exporting ? 'Exportando...' : 'Exportar para Excel'}
             </Button>
           </div>
-
-          {hasSearched && rowCount > 0 && (
-            <div className='mt-4 flex items-center gap-4 pt-4 border-t border-gray-200'>
-              <div className='flex items-center gap-2'>
-                <TrendingUpIcon style={{ color: '#fca311', fontSize: 20 }} />
-                <Typography variant="body2" className="text-gray-600">
-                  Total de registros: <strong className="text-gray-900">{rowCount}</strong>
-                </Typography>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
-      
-      {/* DataGrid Card */}
-      <Card className="shadow-lg overflow-hidden">
-        <CardContent className="p-0">
-          <Box sx={{ height: 620, width: '100%' }}>
-            <DataGrid
-              rows={rows}
-              columns={columns}
-              rowCount={rowCount}
-              loading={loading}
-              pageSizeOptions={[10, 25, 50, 100]}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              paginationMode="server"
-              hideFooter={!hasSearched}
-              autoHeight={false}
-              getRowId={(row) => row.id || `${row.placa}-${row.data}-${row.hora}-${Math.random()}`}
-              slots={{
+
+      {/* Tabela de Resultados */}
+      <Card className="shadow-lg">
+        <Box sx={{ height: 600, width: '100%' }}>
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            rowCount={rowCount}
+            loading={loading}
+            pageSizeOptions={[20, 50, 100]}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            paginationMode="server"
+            getRowId={(row) => row.id || Math.random()} // Fallback seguro para ID
+            slots={{
                 pagination: CustomPagination,
                 noRowsOverlay: () => {
                   if (!hasSearched) {
@@ -796,7 +718,6 @@ export default function ConsultaLocal() {
               }}
             />
           </Box>
-        </CardContent>
       </Card>
     </div>
   );

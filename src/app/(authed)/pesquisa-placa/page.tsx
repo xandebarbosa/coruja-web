@@ -181,7 +181,7 @@ export default function ConsultaPlaca() {
       };
 
       // 2. Chama o serviço
-      const allData = await radarsService.searchByPlacaExport(paramsToExport);
+      const allData = await radarsService.searchAllByLocalForExport(paramsToExport);
 
       // 3. Validações
       if (!allData || allData.length === 0) {
@@ -214,7 +214,7 @@ export default function ConsultaPlaca() {
 
     try {
       // 1. Busca TODOS os dados da API (mesma lógica da exportação)
-      const allData = await radarsService.searchByPlacaExport({ placa: placaInput });
+      const allData = await radarsService.searchAllByLocalForExport({ placa: placaInput });
 
       if (!allData || allData.length === 0) {
         toast.warn("Nenhum dado encontrado para copiar.");

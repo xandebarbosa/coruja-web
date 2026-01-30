@@ -1,24 +1,50 @@
+import { Client } from '@stomp/stompjs';
 import NextAuth, { AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 
-function parseJwt(token: string) {
+//Função para renovar o token se necessário (opcional, mas recomendado para tokens longos)
+async function refreshAccessToken(token: any) {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      Buffer.from(base64, 'base64')
-        .toString()
-        .split('')
-        .map(function (c) {
-          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        })
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error("Erro ao decodificar JWT: ", e);
-    return null;
-  }
+    const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
+
+    // Validação básica para evitar enviar "undefined"
+    const clientId = process.env.KEYCLOAK_CLIENT_ID;
+    const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error("KEYCLOAK_CLIENT_ID ou KEYCLOAK_CLIENT_SECRET não definidos no .env");
+    }
+
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken,
+      }),
+    });     
+    const refreshedTokens = await response.json();
+
+    if (!response.ok) {
+        console.error("Erro Keycloak Refresh:", refreshedTokens);
+        throw refreshedTokens;
+    }
+
+    return {
+      ...token,
+      accessToken: refreshedTokens.access_token,
+      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Use o novo refresh token se fornecido
+    };
+  } catch (error) {
+    console.error("Erro ao renovar token de acesso: ", error);
+    return {
+      ...token,
+      error: "RefreshAccessTokenError", // Isso gatilha o logout no frontend se tratado lá    
+    };
+  }  
 }
 
 export const authOptions: AuthOptions = {
@@ -27,55 +53,60 @@ export const authOptions: AuthOptions = {
 
   providers: [
     KeycloakProvider({
-      clientId: process.env.KEYCLOAK_CLIENT_ID!,
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
-      issuer: process.env.KEYCLOAK_ISSUER!,
-      // ADICIONE ESTE BLOCO PARA AUMENTAR O TIMEOUT
-      httpOptions: {
-        timeout: 30000, // 30 segundos (padrão é 3500ms)
-      },
-
-      // --- CORREÇÃO: FORÇA AS URLS DE AUTORIZAÇÃO E TOKEN EXTERNAS ---
-      authorization: {
-        url: `${process.env.KEYCLOAK_ISSUER!}/protocol/openid-connect/auth`,
-        params: { scope: "openid email profile" },
-      },
-      token: {
-        url: `${process.env.KEYCLOAK_ISSUER!}/protocol/openid-connect/token`,
-      },
+      clientId: process.env.KEYCLOAK_CLIENT_ID || "",
+      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || "",
+      issuer: process.env.KEYCLOAK_ISSUER,   
     }),
   ], 
-  
+  session:  {
+    strategy: "jwt",
+    // ✅ SOLICITAÇÃO 1: Duração de 24 horas (em segundos)
+    maxAge: 24 * 60 * 60, // 24 horas
+  },  
   callbacks: {
-    async jwt({ token, account }) {
-      // Executa somente na primeira autenticação
-      if (account?.access_token) {
-        const decodedToken = parseJwt(account.access_token);
-
-        // Evita erro quando o usuário não tem realm_access
-       const roles = decodedToken?.realm_access?.roles ?? [];
-
+    async jwt({ token, account, user }) {
+      // Login inicial
+      if (account && user) {
         return {
           ...token,
           accessToken: account.access_token,
-          roles,
+          // ✅ Importante: Salvamos o id_token para usar no Logout depois
+          idToken: account.id_token,
+          refreshToken: account.refresh_token,
+          accessTokenExpires: account.expires_at ? account.expires_at * 1000 : 0,
+          userRole: "user", // Ajuste conforme sua lógica de roles
+          roles: token.roles // Se vier do profile callback
         };
       }
 
-      // Para requests subsequentes, mantenha o token existente
-      return token;
+      // Se o token ainda não expirou, retorne-o
+      if (Date.now() < (token.accessTokenExpires as number) - 10000) {
+        return token;
+      }
+
+      // Se expirou, tenta renovar
+      console.log("Token expirado, tentando renovar...");
+      return refreshAccessToken(token);
     },
     async session({ session, token }) {
-      // Garante que não quebra se session.user for readonly
+      // Passa os dados do token para a sessão do cliente
       session.user = {
         ...session.user,
         roles: token.roles || [],
       };
       // Copia o accessToken para a sessão
-      session.accessToken = token.accessToken;
+      session.accessToken = token.accessToken as string;
+      session.error = token.error as string;
+      session.idToken = token.idToken as string;
       return session;
     },
   },
+  events: {
+    // Evento opcional para logar saídas
+    async signOut({ token}) {
+      console.log("Usuário deslogou do NextAuth:", token?.name);
+    }
+  }
 };
 
 const handler = NextAuth(authOptions);

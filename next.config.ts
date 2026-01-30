@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       // ✅ NOVA REGRA: Proxy para o WebSocket
       {
         source: '/ws/:path*',
-        destination: 'http://localhost:8081/ws/:path*', // Backend URL
+        destination: 'http://localhost:8082/ws/:path*', // Backend URL
       },
     ];
   },

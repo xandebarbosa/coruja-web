@@ -25,6 +25,9 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: "Coruja Web",
   description: "Sistema de Consulta de Radares",
+  icons: {
+    icon: "/image/logo-asinha.png",
+  },
 };
 
 export default function RootLayout({

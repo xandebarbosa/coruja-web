@@ -10,6 +10,10 @@ declare module "next-auth/jwt" {
     /** O Access Token do Keycloak */
     accessToken?: string;
     roles?: string[];
+    refreshToken?: string;
+    idToken?: string; // ✅ Adicionado
+    accessTokenExpires?: number;
+    error?: string;
   }
 }
 
@@ -21,10 +25,12 @@ declare module "next-auth" {
   interface Session {
     /** O Access Token do Keycloak, disponível no lado do cliente */
     accessToken?: string;
-    
+    error?: string;
+    idToken?: string; // ✅ Adicionado    
     // Adiciona o usuário à sessão
     user: {
       /** Papéis do usuário (ex: ['admin', 'user']) */
+      id?: string;
       roles?: string[];
     } & DefaultSession["user"]; // Mantém os campos padrão (name, email, image)
   }

@@ -47,9 +47,40 @@ export default function Sidebar() {
   // Verfica se o usuário é admin
   const isAdmin = session?.user?.roles?.includes('admin');
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' });
-  }
+  // Logout Federado (Força login novamente)
+  const handleLogout = async () => {
+    try {
+      // URL base do Keycloak
+      const issuerUrl = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER || "http://localhost:8180/realms/radares-realm";
+      
+      // ✅ PEGA O ID TOKEN DA SESSÃO
+      const idToken = session?.idToken;
+
+      // Monta URL de redirecionamento (para onde voltar após sair)
+      // Ajuste a porta se seu front roda na 3000 ou 3009 (conforme seu log)
+      const redirectUrl = encodeURIComponent(window.location.origin); 
+      
+      let logoutUrl = `${issuerUrl}/protocol/openid-connect/logout?post_logout_redirect_uri=${redirectUrl}`;
+
+      // ✅ ADICIONA O ID_TOKEN_HINT SE EXISTIR
+      if (idToken) {
+        logoutUrl += `&id_token_hint=${idToken}`;
+      } else {
+        console.warn("⚠️ idToken não encontrado na sessão. O logout pode falhar ou pedir confirmação.");
+      }
+
+      // 1. Limpa sessão local do NextAuth
+      await signOut({ redirect: false });
+
+      // 2. Redireciona para o Keycloak
+      window.location.href = logoutUrl;
+
+    } catch (error) {
+      console.error("Erro ao realizar logout:", error);
+      // Fallback
+      signOut({ callbackUrl: '/' });
+    }
+  };
 
   const NavLink = ({ item }: { item: typeof navItems[0] }) => {
     const isActive = pathname === item.path;
@@ -130,7 +161,7 @@ export default function Sidebar() {
           {/* Logo Section */}
           <Box className="flex items-center gap-3 px-2 py-4 mb-6">
             <Image
-              src="/image/logo-coruja.png"
+              src="/image/logo-rodoviario.png"
               alt="logo-coruja"
               width={48}
               height={48}

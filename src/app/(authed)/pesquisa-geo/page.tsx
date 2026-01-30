@@ -344,6 +344,7 @@ export default function PesquisaGeoPage() {
               
               <form onSubmit={handleSearchClick} className="space-y-4">
                 {/* Data */}
+                <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
                     <Calendar size={16} className="text-[#fca311]" />
@@ -357,10 +358,7 @@ export default function PesquisaGeoPage() {
                     onChange={handleInputChange('data')}
                   />
                 </div>
-
-                {/* Horas */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
                       <Clock size={16} className="text-[#fca311]" />
                       Hora Inicial *
@@ -373,7 +371,6 @@ export default function PesquisaGeoPage() {
                       onChange={handleInputChange('horaInicio')}
                     />
                   </div>
-
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#14213d]">
                       <Clock size={16} className="text-[#fca311]" />
@@ -387,7 +384,7 @@ export default function PesquisaGeoPage() {
                       onChange={handleInputChange('horaFim')}
                     />
                   </div>
-                </div>
+                </div>                
 
                 {/* Coordenadas */}
                 <div className="grid grid-cols-2 gap-4">

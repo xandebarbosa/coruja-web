@@ -69,10 +69,10 @@ export default function LoginPage() {
           >
             {/* 1. Logo do Projeto */}
             <Image
-              src="/image/logo-coruja.png" // Caminho para seu logo
+              src="/image/challenge_coin1.png" // Caminho para seu logo
               alt="Logo Coruja Radar"
-              width={100} // Ajuste o tamanho conforme necessário
-              height={100}
+              width={300} // Ajuste o tamanho conforme necessário
+              height={300}
               style={{ marginBottom: '16px' }}
             />
             

@@ -25,10 +25,10 @@ export {
 export const searchByPlaca = radarsService.searchByPlaca.bind(radarsService);
 export const searchByLocal = radarsService.searchByLocal.bind(radarsService);
 export const searchByGeoLocation = radarsService.searchByGeoLocation.bind(radarsService);
-export const getFilterOptions = radarsService.getFilterOptions.bind(radarsService);
-export const getKmsByRodovia = radarsService.getKmsByRodovia.bind(radarsService);
+//export const getFilterOptions = radarsService.getFilterOptions.bind(radarsService);
+//export const getKmsByRodovia = radarsService.getKmsByRodovia.bind(radarsService);
 export const getLatestRadars = radarsService.getLatestRadars.bind(radarsService);
-export const getRadarsWithFilters = radarsService.getRadarsWithFilters.bind(radarsService);
+//export const getRadarsWithFilters = radarsService.getRadarsWithFilters.bind(radarsService);
 export const searchAllByLocalForExport = radarsService.searchAllByLocalForExport.bind(radarsService);
 
 export const getMonitoredPlates = monitoringService.getMonitoredPlates.bind(monitoringService);

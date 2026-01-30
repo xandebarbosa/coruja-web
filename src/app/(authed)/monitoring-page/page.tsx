@@ -56,9 +56,9 @@ export default function MonitoramentoRealtimePage() {
     
     // --- REFERÊNCIAS PARA CONTROLE DE EFEITOS ---
     // --- Referências para o alerta sonoro ---
-    const audioCooldownRef = useRef(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    //const audioCooldownRef = useRef(false);
+    //const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     
 
     // 1. Função de Ordenação Robusta (Aceita Array [ano, mes, dia] ou String ISO)
@@ -113,19 +113,16 @@ export default function MonitoramentoRealtimePage() {
     // --- 3. Tocar Som ---
     // Função para tocar som e notificar
     const playSoundAndNotify = useCallback((placa: string) => {
-        if (isAudioUnlocked && !audioCooldownRef.current && audioRef.current) {
-            audioCooldownRef.current = true;
-            audioRef.current.currentTime = 0;
-            audioRef.current.play().catch(e => console.error("Autoplay bloqueado:", e));
+        if (isAudioUnlocked && audioRef.current) {
+           try {
+                // Se o áudio já estiver tocando, reinicia ele para tocar o novo alerta imediatamente
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.error("Autoplay ou erro de áudio:", e));
+            } catch (error) {
+                console.error("Erro ao manipular áudio", error);
+            }
 
-            setTimeout(() => {
-                if (audioRef.current) {
-                    audioRef.current.pause();
-                    audioRef.current.currentTime = 0;
-                }
-                audioCooldownRef.current = false;
-            }, 5000);
-
+            // Notificação Visual (Toast)
             toast.info(
                 <div className="flex items-center gap-3">
                     <Notifications sx={{ color: '#fca311', fontSize: 28 }} />
@@ -200,10 +197,10 @@ export default function MonitoramentoRealtimePage() {
 
      // 3. Lógica do WebSocket para receber NOVOS alertas confirmados.
     useEffect(() => {
-    let client: Client | null = null;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
+      let client: Client | null = null;
+      let reconnectTimeout: NodeJS.Timeout | null = null;
 
-    const connectWebSocket = async () => {
+      const connectWebSocket = async () => {
         try {
             const session = await getSession();
             const token = session?.accessToken;
@@ -242,18 +239,26 @@ export default function MonitoramentoRealtimePage() {
                                 const newAlert = JSON.parse(message.body);
                                 console.log('📩 Novo Alerta:', newAlert);
 
-                                if (debounceTimerRef.current) {
-                                    clearTimeout(debounceTimerRef.current);
-                                }
+                                setRows((prevRows) => {
+                                  // Se já existir, retornamos a lista atual sem alterações
+                                  const alreadyExists = prevRows.some(row => row.id === newAlert.id);
+                                  if (alreadyExists) {
+                                      return prevRows;
+                                  }
 
-                                debounceTimerRef.current = setTimeout(() => {
-                                    setRows((prevRows) => {
-                                        const updated = [newAlert, ...prevRows];
-                                        return sortAlerts(updated);
-                                    });
-                                    setRowCount(prev => prev + 1);
-                                    playSoundAndNotify(newAlert.placa);
-                                }, 300);
+                                  // Se for novo, adiciona e ordena
+                                  const updated = [newAlert, ...prevRows];
+                                  return sortAlerts(updated);
+                                });
+                                    
+                                // Incrementa o contador apenas se for novo (opcional, mas recomendado)
+                                // Se você quiser contar mesmo repetidos, mova para fora da verificação acima,
+                                // mas cuidado com a contagem desincronizada.
+                                // Para segurança, recomendo atualizar o rowCount baseado no tamanho real:
+                                setRowCount(prev => prev + 1);
+            
+                                // Toca o som (você pode decidir se quer tocar som para repetidos ou não)
+                                playSoundAndNotify(newAlert.placa);
                             } catch (error) {
                                 console.error('❌ Erro ao processar alerta:', error);
                             }
@@ -285,10 +290,7 @@ export default function MonitoramentoRealtimePage() {
 
     connectWebSocket();
 
-    return () => {
-        if (debounceTimerRef.current) {
-            clearTimeout(debounceTimerRef.current);
-        }
+    return () => {        
         if (reconnectTimeout) {
             clearTimeout(reconnectTimeout);
         }
