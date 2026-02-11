@@ -1,4 +1,4 @@
-import { MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates, UsuarioTelegram } from "../types/types";
+import { AlertHistoryRow, MonitoredPlate, MonitoredPlateFormData, PaginatedAlertHistory, PaginatedMonitoredPlates, UsuarioTelegram } from "../types/types";
 import api from "./client";
 
 export interface PaginationParams {
@@ -14,10 +14,11 @@ class MonitoringService {
   /**
    * Busca placas monitoradas com paginação
    */
-  async getMonitoredPlates(page: number, pageSize: number, p0: string, params: PaginationParams = {}): Promise<PaginatedMonitoredPlates> {
+  async getMonitoredPlates(page: number, size: number, sort: string): Promise<PaginatedMonitoredPlates> {
     try {
       console.log('👁️ Buscando placas monitoradas');
-      const { data } = await api.get<PaginatedMonitoredPlates>('/monitoramento', { params });
+      const { data } = await api.get<PaginatedMonitoredPlates>('/monitoramento', { params: {page, size, sort} });      
+      
       console.log('✅ Placas recebidas');
       return data;
     } catch (error: any) {
@@ -99,6 +100,19 @@ class MonitoringService {
     
     return data;
   }  
+
+  async getLatestAlerts(): Promise<AlertHistoryRow[]> {
+    try {
+      console.log('🚨 Buscando últimos alertas');
+      const { data } = await api.get<AlertHistoryRow[]>('/monitoramento/ultimos');
+      console.log('✅ Últimos alertas recebidos');
+      return data;
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar últimos alertas:', error.message);
+      throw error;
+    }
+
+  }
 }
 
 export const monitoringService = new MonitoringService();

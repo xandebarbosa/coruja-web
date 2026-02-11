@@ -15,7 +15,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ClearIcon from '@mui/icons-material/Clear';
-import { RodoviaDTO } from '@/app/services/radars';
+import { PracaDTO, RodoviaDTO } from '@/app/services/radars';
 //import { ExportExcel } from '../components/ExportExcel';
 
 // =============================================
@@ -28,7 +28,8 @@ interface FilterState {
   rodoviaId: number | ''; // ID da rodovia (para buscar KMs)
   km: string;
   sentido: string;
-  praca: string;
+  praca: string; // Nome da praça (para enviar ao back)
+  pracaId: string;
   data: string;
   horaInicial: string;
   horaFinal: string;
@@ -38,7 +39,7 @@ interface OptionsState {
   rodovias: RodoviaDTO[]; // Agora guarda objetos {id, nome}
   kms: string[];
   sentidos: string[];
-  pracas: string[]; // Se tiver endpoint de praças, use aqui
+  pracas: PracaDTO[]; // Se tiver endpoint de praças, use aqui
 }
 
 const INITIAL_FILTERS: FilterState = {
@@ -48,6 +49,7 @@ const INITIAL_FILTERS: FilterState = {
   km: '',
   sentido: '',
   praca: '',
+  pracaId: '',
   data: new Date().toISOString().split('T')[0], // Data de hoje como padrão
   horaInicial: '',
   horaFinal: '',
@@ -148,6 +150,7 @@ export default function ConsultaLocal() {
   
   const [loading, setLoading] = useState(false);
   const [loadingRodovias, setLoadingRodovias] = useState(false);
+  const [loadingPracas, setLoadingPracas] = useState(false);
   const [loadingKms, setLoadingKms] = useState(false);
   
   const [rows, setRows] = useState<RadarsDTO[]>([]);
@@ -191,7 +194,7 @@ export default function ConsultaLocal() {
         const kmsData = await radarsService.getKmsByRodoviaId(Number(filters.rodoviaId));
         setOptions(prev => ({ ...prev, kms: kmsData.map(k => k.valor) }));
       } catch (error) {
-        console.error(error);
+        console.error('Erro ao carregar KMs:', error);
         toast.error("Erro ao carregar KMs.");
       } finally {
         setLoadingKms(false);
@@ -201,88 +204,179 @@ export default function ConsultaLocal() {
     fetchKms();
   }, [filters.rodoviaId]);
 
+  // =============================================
+  // 3. Carrega praças quando concessionária Eixo é selecionada
+  // =============================================
+  useEffect(() => {
+    const fetchPracas = async () => {
+      if (filters.concessionaria !== 'eixo') {
+        setOptions(prev => ({ ...prev, pracas: [] }));
+        return;
+      }
+      
+      setLoadingPracas(true);
+      try {
+        // TODO: Implementar endpoint de praças no service
+        const pracas = await radarsService.getPracas();
+        setOptions(prev => ({ ...prev, pracas }));
+        
+        // Placeholder temporário
+        setOptions(prev => ({ ...prev, pracas: [] }));
+        //toast.info("Carregamento de praças ainda não implementado no backend.");
+      } catch (error) {
+        console.error('Erro ao carregar praças:', error);
+        toast.error("Erro ao carregar praças.");
+      } finally {
+        setLoadingPracas(false);
+      }
+    };
+    fetchPracas();
+  }, [filters.concessionaria]);
 
+
+  // =============================================
   // HANDLERS
+  // =============================================
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
+
+    // Reset completo ao mudar concessionária
+    if (name === 'concessionaria') {
+      setFilters({
+        ...INITIAL_FILTERS,
+        concessionaria: value,
+        data: filters.data,
+      });
+      return;
+    }
     
-    // Lógica especial para Rodovia (que tem ID e Nome)
+    // Tratamento especial para rodovia (mantém ID e nome)
     if (name === 'rodoviaId') {
       const selectedRodovia = options.rodovias.find(r => r.id === Number(value));
       setFilters(prev => ({
         ...prev,
         rodoviaId: value as unknown as number,
-        rodovia: selectedRodovia ? selectedRodovia.nome : '', // Guarda o nome para enviar na busca
-        km: '' // Reseta KM ao mudar rodovia
+        rodovia: selectedRodovia?.nome || '',
+        km: '', // Reset KM ao mudar rodovia
       }));
-    } else {
-      setFilters(prev => ({ ...prev, [name]: value }));
+      return;
     }
+
+    // Tratamento para praça (se necessário manter ID e nome)
+    if (name === 'pracaId') {
+      const selectedPraca = options.pracas.find(p => p.id === Number(value));
+      setFilters(prev => ({
+        ...prev,
+        pracaId: value,
+        praca: selectedPraca?.nome || '',
+      }));
+      return;
+    }
+
+    // Demais campos
+    setFilters(prev => ({ ...prev, [name]: value }));
   };
 
   const handleTextFieldChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value });
+    setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // BUSCA
+
+  // =============================================
+  // BUSCA DE DADOS
+  // =============================================
   const fetchRadars = useCallback(async (page: number, size: number, filtersToUse: FilterState) => {
     setLoading(true);
     
-    // Mapeia estado local para interface do Service
-    const params: LocalSearchParams = {
-      page,
-      pageSize: size,
-      concessionaria: filtersToUse.concessionaria,
-      data: filtersToUse.data,
-      horaInicial: filtersToUse.horaInicial,
-      horaFinal: filtersToUse.horaFinal,
-      rodovia: filtersToUse.rodovia,
-      km: filtersToUse.km,
-      sentido: filtersToUse.sentido,
-      praca: filtersToUse.praca
-    };
-
     try {
+      // Monta os parâmetros conforme interface LocalSearchParams
+      const params: LocalSearchParams = {
+        page,
+        pageSize: size,
+        data: filtersToUse.data,
+        horaInicial: filtersToUse.horaInicial || undefined,
+        horaFinal: filtersToUse.horaFinal || undefined,
+        sentido: filtersToUse.sentido || undefined,
+        concessionaria: filtersToUse.concessionaria,
+      };
+
+      // Adiciona filtros específicos por concessionária
+      if (filtersToUse.concessionaria === 'cart') {
+        if (filtersToUse.rodovia) params.rodovia = filtersToUse.rodovia;
+        if (filtersToUse.km) params.km = filtersToUse.km;
+      } else if (filtersToUse.concessionaria === 'eixo' || 
+                 filtersToUse.concessionaria === 'rondon' || 
+                 filtersToUse.concessionaria === 'entrevias') {
+        if (filtersToUse.praca) params.praca = filtersToUse.praca;
+      }
+
+      console.log('📤 Parâmetros enviados para busca:', params);
+
       const response = await radarsService.searchByLocal(params);
       
-      if (response && response.content) {
+      console.log('📥 Resposta recebida:', response);
+
+      if (response?.content && Array.isArray(response.content)) {
         setRows(response.content);
         setRowCount(response.page?.totalElements || 0);
+        
+        if (response.content.length === 0) {
+          toast.info("Nenhum registro encontrado com os filtros aplicados.");
+        } else {
+          toast.success(`${response.page?.totalElements || response.content.length} registros encontrados.`);
+        }
       } else {
+        console.warn('⚠️ Resposta inesperada:', response);
         setRows([]);
         setRowCount(0);
+        toast.warning("Resposta do servidor em formato inesperado.");
       }
-    } catch (error) {
-      // Toast já exibido no service ou aqui se preferir
+    } catch (error: any) {
+      console.error('❌ Erro na busca:', error);
       setRows([]);
       setRowCount(0);
+      
+      const errorMessage = error.response?.data?.message || 
+                          error.message || 
+                          "Erro ao buscar dados. Verifique os filtros e tente novamente.";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // =============================================
+  // AÇÕES
+  // =============================================
   // Botão Buscar
   const handleSearchClick = () => {
-    // Validação de Campos Obrigatórios (Data e Hora são exigidos pelo BFF agora)
+    // Validação: Data é obrigatória
     if (!filters.data) {
-      toast.warning("A Data é obrigatória.");
+      toast.warning("⚠️ A Data é obrigatória para realizar a busca.");
       return;
     }
-    // Hora pode ser opcional dependendo da regra de negócio do backend refatorado,
-    // mas se o backend exigir, valide aqui:
-    // if (!filters.horaInicial || !filters.horaFinal) { toast.warning("Informe o intervalo de horário."); return; }
+
+    // Validação: Pelo menos um filtro além da data
+    const hasAdditionalFilter = 
+      filters.concessionaria ||
+      filters.rodovia ||
+      filters.km ||
+      filters.sentido ||
+      filters.praca ||
+      filters.horaInicial ||
+      filters.horaFinal;
+
+    if (!hasAdditionalFilter) {
+      toast.warning("⚠️ Selecione pelo menos um filtro adicional além da data.");
+      return;
+    }
+
+    console.log('🔍 Iniciando busca com filtros:', filters);
 
     setActiveFilters(filters);
     setHasSearched(true);
     setPaginationModel(prev => ({ ...prev, page: 0 }));
   };
-
-  // Efeito de Paginação
-  useEffect(() => {
-    if (activeFilters) {
-      fetchRadars(paginationModel.page, paginationModel.pageSize, activeFilters);
-    }
-  }, [paginationModel, activeFilters, fetchRadars]);
 
   // Limpar
   const handleClear = () => {
@@ -330,6 +424,15 @@ export default function ConsultaLocal() {
       setExporting(false);
     }
   };
+
+  // =============================================
+  // EFEITO DE PAGINAÇÃO
+  // =============================================
+  useEffect(() => {
+    if (activeFilters) {
+      fetchRadars(paginationModel.page, paginationModel.pageSize, activeFilters);
+    }
+  }, [paginationModel, activeFilters, fetchRadars]);
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6'>
@@ -392,73 +495,103 @@ export default function ConsultaLocal() {
                 label="Concessionária"
                 onChange={handleSelectChange}
               >
-                <MenuItem value=""><em>Todas</em></MenuItem>
+                <MenuItem value=""><em>Selecione</em></MenuItem>
                 <MenuItem value="cart">Cart</MenuItem>
                 <MenuItem value="eixo">Eixo</MenuItem>
                 <MenuItem value="rondon">Rondon</MenuItem>
                 <MenuItem value="entrevias">Entrevias</MenuItem>
               </Select>
-            </FormControl>            
+            </FormControl>        
 
-            {/* Rodovia (Carregada do Back) */}
-            <FormControl 
-              fullWidth 
-              size="small" 
-              disabled={loadingRodovias}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: '#fca311' },
-                  '&.Mui-focused fieldset': { borderColor: '#fca311' },
-                },
-                '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
-              }}
-            >
-              <InputLabel id="rodovia-select-label">Rodovia</InputLabel>
-              <Select
-                name="rodoviaId" // Usa ID internamente
-                value={String(filters.rodoviaId)} // Converte para string para o Select
-                label="Rodovia"
-                onChange={handleSelectChange}
-                IconComponent={loading ? () => <CircularProgress size={15} sx={{ marginRight: '12px'}}/> : undefined}
-              >
-                <MenuItem value="">
-                  <em>{loading ? 'Buscando...' : 'Todas'}</em>
-                </MenuItem>
-                {options.rodovias.map(r => (
-                  <MenuItem key={r.id} value={r.id}>{r.nome}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+             {/* FILTROS CART */}
+            {filters.concessionaria === 'cart' && (
+              <>
+                <FormControl 
+                  fullWidth 
+                  size="small"
+                  disabled={loadingRodovias}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': { borderColor: '#fca311' },
+                      '&.Mui-focused fieldset': { borderColor: '#fca311' },
+                    },
+                    '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
+                  }}
+                >
+                  <InputLabel>Rodovia</InputLabel>
+                  <Select 
+                    name="rodoviaId" 
+                    value={String(filters.rodoviaId)} 
+                    label="Rodovia"
+                    onChange={handleSelectChange}
+                  >
+                    <MenuItem value=""><em>Todas</em></MenuItem>
+                    {options.rodovias.map(r => (
+                      <MenuItem key={r.id} value={r.id}>{r.nome}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-            {/* KM (Depende da Rodovia) */}
-            <FormControl 
-              size="small" 
-              fullWidth 
-              disabled={!filters.rodoviaId || loadingKms}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: '#fca311' },
-                  '&.Mui-focused fieldset': { borderColor: '#fca311' },
-                },
-                '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
-              }}
-            >
-              <InputLabel id="km-select-label">KM</InputLabel>
-              <Select
-                name="km"
-                value={filters.km}
-                label="KM"
-                onChange={handleSelectChange}
-                IconComponent={loading ? () => <CircularProgress size={20} sx={{ marginRight: '12px' }} /> : undefined}
+                <FormControl 
+                  size="small" 
+                  fullWidth 
+                  disabled={!filters.rodoviaId || loadingKms}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': { borderColor: '#fca311' },
+                      '&.Mui-focused fieldset': { borderColor: '#fca311' },
+                    },
+                    '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
+                  }}
+                >
+                  <InputLabel>KM</InputLabel>
+                  <Select
+                    name="km"
+                    value={filters.km}
+                    label="KM"
+                    onChange={handleSelectChange}
+                  >
+                    <MenuItem value=""><em>Todos</em></MenuItem>
+                    {options.kms.map(k => (
+                      <MenuItem key={k} value={k}>{k}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </>
+            )}
+
+            {/* FILTROS EIXO/RONDON/ENTREVIAS */}
+            {(filters.concessionaria === 'eixo' || 
+              filters.concessionaria === 'rondon' || 
+              filters.concessionaria === 'entrevias') && (
+              <FormControl 
+                fullWidth 
+                size="small"
+                disabled={loadingPracas}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&:hover fieldset': { borderColor: '#fca311' },
+                    '&.Mui-focused fieldset': { borderColor: '#fca311' },
+                  },
+                  '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
+                }}
               >
-                <MenuItem value=""><em>
-                  {loading ? 'Buscando...' : 'Todos os KMs'}</em>
-                </MenuItem>
-                {options.kms.map(k => (
-                  <MenuItem key={k} value={k}>{k}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                <InputLabel>Praça</InputLabel>
+                <Select 
+                  name="pracaId" 
+                  value={filters.pracaId} 
+                  label="Praça"
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value=""><em>Todas</em></MenuItem>
+                  {options.pracas.map(p => (
+                    <MenuItem key={p.id} value={p.id}>{p.nome}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )} 
+
+            
 
             {/* Sentido */}
             <FormControl 

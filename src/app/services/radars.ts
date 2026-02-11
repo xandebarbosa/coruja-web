@@ -8,6 +8,11 @@ export interface RodoviaDTO {
   nome: string;
 }
 
+export interface PracaDTO {
+  id: number;
+  nome: string;
+}
+
 export interface KmRodoviaDTO {
   id: number;
   valor: string;
@@ -46,8 +51,13 @@ class RadarsService {
    * Endpoint: GET /radares/ultimos-processados
    */
   async getLatestRadars(): Promise<RadarEvent[]> {
-    const { data } = await api.get<RadarEvent[]>('/radares/ultimos-processados');
-    return data;
+    try {
+      const { data } = await api.get<RadarEvent[]>('/radares/ultimos-processados');
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('❌ Erro ao buscar últimos radares:', error);
+      return [];
+    }
   }
 
   // =================================================================================================
@@ -57,19 +67,42 @@ class RadarsService {
   /**
    * Busca por Placa (Histórico Completo)
    * Endpoint: GET /radares/busca-placa
+   * 
+   * @param placa - Placa do veículo (obrigatório)
+   * @param page - Número da página (default: 0)
+   * @param pageSize - Tamanho da página (default: 20)
    */
-  async searchByPlaca(placa: string, page: number = 0, pageSize: number = 20): Promise<PageResponse<RadarsDTO>> {
-    console.log(`📍 [Service] Buscando placa: ${placa}`);
+  async searchByPlaca(
+    placa: string, 
+    page: number = 0, 
+    pageSize: number = 20
+  ): Promise<PageResponse<RadarsDTO>> {
+    console.group('🔍 [Service] Busca por Placa');
+    console.log(`Placa: ${placa} | Page: ${page} | Size: ${pageSize}`);
     
-    const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/busca-placa', {
-      params: {
-        placa,
-        page,
-        size: pageSize,
-        sort: 'data,desc' // Garante ordenação cronológica
-      }
-    });
-    return data;
+    try {
+      const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/busca-placa', {
+        params: {
+          placa: placa.trim().toUpperCase(),
+          page,
+          size: pageSize,
+          sort: 'data,desc'
+        }
+      });
+      
+      console.log(`✅ Sucesso: ${data.page?.totalElements || 0} registros encontrados`);
+      console.groupEnd();
+      
+      return data;
+    } catch (error: any) {
+      console.error('❌ Erro na busca por placa:', error);
+      console.groupEnd();
+      
+      throw new Error(
+        error.response?.data?.message || 
+        'Erro ao buscar dados da placa. Verifique e tente novamente.'
+      );
+    }
   }
 
   
@@ -77,46 +110,54 @@ class RadarsService {
   /**
    * Busca por Local (Filtros Operacionais)
    * Endpoint: GET /radares/busca-local
-   * Agora aceita 'concessionaria' como parâmetro opcional (lista ou string)
+   * 
+   * IMPORTANTE: Data é obrigatória para performance do índice
    */
   async searchByLocal(params: LocalSearchParams): Promise<PageResponse<RadarsDTO>> {
     console.group('🔍 [Service] Busca por Local');
-    console.log('Params:', params);
-
-    // Desestrutura para separar paginação e filtros
-    const { concessionaria, page, pageSize, ...filters } = params;
-
-    // Monta objeto de query compatível com o novo BFF
-    const queryParams: any = {
-      page: page ?? 0,
-      size: pageSize ?? 20,
-      data: filters.data, // Data é obrigatória na nova arquitetura para performance
-      horaInicial: filters.horaInicial,
-      horaFinal: filters.horaFinal,
-      rodovia: filters.rodovia,
-      km: filters.km,
-      sentido: filters.sentido
-    };
-
-    // Remove chaves undefined/vazias para limpar a URL
-    Object.keys(queryParams).forEach(key => {
-      const k = key as keyof SearchLocalParams;
-      if (queryParams[k] === undefined || queryParams[k] === '') {
-        delete queryParams[k];
-      }
-    });
+    console.log('Parâmetros recebidos:', params);
 
     try {
+      // Validação de campo obrigatório
+      if (!params.data) {
+        throw new Error('O campo "data" é obrigatório para busca por local.');
+      }
+
+      // Monta parâmetros limpos (remove undefined/null/vazios)
+      const queryParams: Record<string, any> = {
+        page: params.page ?? 0,
+        size: params.pageSize ?? 20,
+        data: params.data, // YYYY-MM-DD (obrigatório)
+      };
+
+      // Adiciona parâmetros opcionais apenas se tiverem valor
+      if (params.horaInicial) queryParams.horaInicial = params.horaInicial;
+      if (params.horaFinal) queryParams.horaFinal = params.horaFinal;
+      if (params.rodovia) queryParams.rodovia = params.rodovia;
+      if (params.km) queryParams.km = params.km;
+      if (params.sentido) queryParams.sentido = params.sentido;
+      if (params.praca) queryParams.praca = params.praca;
+
+      console.log('Parâmetros enviados ao backend:', queryParams);
+
       const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/busca-local', {
         params: queryParams
       });
-      console.log('✅ Sucesso:', data.page?.totalElements, 'registros.');
+
+      console.log(`✅ Sucesso: ${data.page?.totalElements || 0} registros | ${data.content?.length || 0} na página`);
       console.groupEnd();
+
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro na busca por local:', error);
+      console.error('Detalhes do erro:', error.response?.data);
       console.groupEnd();
-      throw error; // Repassa o erro para o componente tratar (ex: Toast)
+
+      throw new Error(
+        error.response?.data?.message || 
+        error.message ||
+        'Erro ao buscar dados por local. Verifique os filtros e tente novamente.'
+      );
     }
   }
 
@@ -127,28 +168,36 @@ class RadarsService {
   async searchByGeoLocation(params: GeoSearchParams): Promise<GeoSearchResponse> {
     console.group('📡 [Service] Busca Geo');
     
-    const paramsEnviados = {
-      latitude: params.latitude,
-      longitude: params.longitude,
-      raio: params.raio,
-      data: params.data,
-      horaInicio: params.horaInicio,
-      horaFim: params.horaFim,
-      page: params.page ?? 0,
-      size: params.size ?? 20,
-    };
-
     try {
+      const queryParams = {
+        latitude: params.latitude,
+        longitude: params.longitude,
+        raio: params.raio,
+        data: params.data,
+        horaInicio: params.horaInicio,
+        horaFim: params.horaFim,
+        page: params.page ?? 0,
+        size: params.size ?? 20,
+      };
+
+      console.log('Parâmetros geo:', queryParams);
+
       const { data } = await api.get<GeoSearchResponse>('/radares/geo-search', {
-        params: paramsEnviados
+        params: queryParams
       });
-      console.log('✅ Geo Results:', data.page?.totalElements);
+
+      console.log(`✅ Geo Results: ${data.page?.totalElements || 0} registros`);
       console.groupEnd();
+      
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro Geo:', error);
       console.groupEnd();
-      throw error;
+      
+      throw new Error(
+        error.response?.data?.message || 
+        'Erro na busca geográfica.'
+      );
     }
   }
 
@@ -163,10 +212,12 @@ class RadarsService {
    */
   async getRodovias(): Promise<RodoviaDTO[]> {
     try {
+      console.log('📍 Buscando rodovias...');
       const { data } = await api.get<RodoviaDTO[]>('/radares/rodovias');
+      console.log(`✅ ${data.length} rodovias carregadas`);
       return data;
     } catch (error) {
-      console.error("Erro ao buscar rodovias:", error);
+      console.error("❌ Erro ao buscar rodovias:", error);
       return [];
     }
   }
@@ -177,13 +228,42 @@ class RadarsService {
    * Requer que o frontend saiba o ID da rodovia selecionada.
    */
   async getKmsByRodoviaId(rodoviaId: number): Promise<KmRodoviaDTO[]> {
-    if (!rodoviaId) return [];
+   if (!rodoviaId) {
+      console.warn('⚠️ ID de rodovia não fornecido');
+      return [];
+    }
+
     try {
+      console.log(`📍 Buscando KMs da rodovia ${rodoviaId}...`);
       const { data } = await api.get<KmRodoviaDTO[]>(`/radares/rodovias/${rodoviaId}/kms`);
-      // Ordena numericamente os KMs para ficar bonito no select
-      return data.sort((a, b) => parseFloat(a.valor) - parseFloat(b.valor));
+      
+      // Ordena numericamente
+      const sorted = data.sort((a, b) => parseFloat(a.valor) - parseFloat(b.valor));
+      console.log(`✅ ${sorted.length} KMs carregados`);
+      
+      return sorted;
     } catch (error) {
-      console.error(`Erro ao buscar KMs da rodovia ${rodoviaId}:`, error);
+      console.error(`❌ Erro ao buscar KMs da rodovia ${rodoviaId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Busca praças (placeholder - implementar quando backend disponibilizar)
+   * TODO: Criar endpoint no backend
+   */
+  async getPracas(): Promise<PracaDTO[]> {
+    try {
+      console.log('📍 Buscando praças...');
+      const { data } = await api.get<PracaDTO[]>('/radares/rodovias');
+      console.log(`✅ ${data.length} praças carregadas`);
+      return data;
+      
+      // Placeholder temporário
+      //console.warn('⚠️ Endpoint de praças ainda não implementado');
+      //return [];
+    } catch (error) {
+      console.error("❌ Erro ao buscar praças:", error);
       return [];
     }
   }
@@ -193,7 +273,7 @@ class RadarsService {
    * Como decidimos não criar tabela, retornamos estático aqui.
    */
   async getSentidos(): Promise<string[]> {
-    return ["Norte", "Sul", "Leste", "Oeste", "Crescente", "Decrescente"];
+    return ["Norte", "Sul", "Leste", "Oeste"];
   }
 
   // =================================================================================================
@@ -201,13 +281,20 @@ class RadarsService {
   // =================================================================================================
 
   async searchAllByGeoLocationForExport(params: Omit<GeoSearchParams, 'page' | 'size'>): Promise<RadarsDTO[]> {
+    console.group('📊 [Service] Exportação Geo');
+    
     try {
       const { data } = await api.get<RadarsDTO[]>('/radares/geo-exportar', {
         params: params
       });
+      
+      console.log(`✅ Exportação geo: ${data.length} registros`);
+      console.groupEnd();
+      
       return Array.isArray(data) ? data : [];
     } catch (error) {
-      console.error('❌ Erro Export Geo:', error);
+      console.error('❌ Erro na exportação geo:', error);
+      console.groupEnd();
       return [];
     }
   }
@@ -218,20 +305,49 @@ class RadarsService {
    * ou o endpoint dedicado se foi criado. (Assumindo endpoint dedicado existente no BFF refatorado ou usando lógica de paginação grande)
    */
   async searchAllByLocalForExport(params: any): Promise<RadarsDTO[]> {
-    // Reutiliza a lógica de busca local, mas forçando paginação máxima
-    // Ajuste a URL caso tenha mantido o /radares/exportar no controller
-    const { data } = await api.get<any>('/radares/exportar', { 
-      params: { 
-        ...params, 
-        page: 0, 
-        size: 100000 
-      } 
-    });
+    console.group('📊 [Service] Exportação Local');
     
-    // Tratamento para garantir retorno de array
-    if (data && Array.isArray(data.content)) return data.content;
-    if (Array.isArray(data)) return data;
-    return [];
+    try {
+      // Remove paginação dos params ou força valores altos
+      const exportParams = {
+        ...params,
+        page: 0,
+        pageSize: 100000, // Tamanho grande para pegar todos
+      };
+
+      console.log('Parâmetros de exportação:', exportParams);
+
+      // Tenta usar endpoint dedicado de exportação, se existir
+      try {
+        const { data } = await api.get<RadarsDTO[]>('/radares/exportar', {
+          params: exportParams
+        });
+        
+        console.log(`✅ Exportação via /exportar: ${data.length} registros`);
+        console.groupEnd();
+        
+        return Array.isArray(data) ? data : [];
+      } catch (exportError) {
+        // Fallback: usa endpoint de busca normal
+        console.warn('⚠️ Endpoint /exportar não disponível, usando /busca-local');
+        
+        const response = await this.searchByLocal(exportParams);
+        const records = response.content || [];
+        
+        console.log(`✅ Exportação via /busca-local: ${records.length} registros`);
+        console.groupEnd();
+        
+        return records;
+      }
+    } catch (error: any) {
+      console.error('❌ Erro na exportação:', error);
+      console.groupEnd();
+      
+      throw new Error(
+        error.response?.data?.message || 
+        'Erro ao exportar dados.'
+      );
+    }
   }
 
   /**
@@ -239,8 +355,15 @@ class RadarsService {
    * Endpoint: GET /radares/all-locations
    */
   async getRadarLocations(): Promise<RadarLocationDTO[]> {
-    const response = await api.get<RadarLocationDTO[]>('/radares/all-locations');
-    return response.data;
+    try {
+      console.log('📍 Buscando localizações de radares...');
+      const { data } = await api.get<RadarLocationDTO[]>('/radares/all-locations');
+      console.log(`✅ ${data.length} localizações carregadas`);
+      return data;
+    } catch (error) {
+      console.error('❌ Erro ao buscar localizações:', error);
+      return [];
+    }
   }
 }
 

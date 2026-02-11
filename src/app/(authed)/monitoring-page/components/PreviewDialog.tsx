@@ -22,7 +22,7 @@ import {
     AccessTime,
     Signpost
 } from '@mui/icons-material';
-import { AlertHistoryRow } from "@/app/services/radars";
+import { AlertHistoryRow } from '@/app/types/types';
 
 // Define as props que o componente do Dialog receberá
 interface PreviewDialogProps {

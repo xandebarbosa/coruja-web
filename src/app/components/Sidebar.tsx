@@ -139,7 +139,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-screen w-72
+          fixed top-0 left-0 z-50 h-auto w-72
           bg-gradient-to-b from-[#003049] via-[#002838] to-[#001e2b]
           shadow-2xl
           transition-transform duration-300 ease-in-out

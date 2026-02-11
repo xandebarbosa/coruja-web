@@ -35,7 +35,7 @@ export default function RegisterPage() {
         try {
             const data = await monitoringService.getMonitoredPlates(
                 paginationModel.page, 
-                paginationModel.pageSize,
+                paginationModel.pageSize,                
                 'createdAt,desc' 
             );
             setRows(data.content || []); // Garante que rows seja sempre um array
@@ -121,21 +121,36 @@ export default function RegisterPage() {
       { 
         field: 'createdAt', 
         headerName: 'Data Cadastro', 
-        width: 180,
+        width: 130,
         headerAlign: 'center',
         align: 'center', 
         // A função agora espera um array de números (number[]) em vez de uma string.
         valueFormatter: (value: number[]) => {
-          if (!value || !Array.isArray(value) || value.length < 6) {
+          if (!value || !Array.isArray(value) || value.length < 3) {
             return ''; // Retorna vazio se o dado não for um array válido
           }        
           // Extrai as partes do array
-          const [year, month, day, hour, minute, second] = value;        
+          const [year, month, day ] = value;        
           // IMPORTANTE: O construtor de Date em JavaScript usa meses baseados em zero (0=Janeiro, 1=Fevereiro...)
           // Por isso, subtraímos 1 do mês que vem do backend (que é 1-based).
-          const date = new Date(year, month - 1, day, hour, minute, second);        
-          // Formata a data e a hora para o padrão brasileiro
-          return date.toLocaleString('pt-BR');
+          // DD/MM/YYYY
+          return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+        },
+      },
+      { 
+        field: 'createdAt_time', // Usamos um field virtual ou o mesmo field
+        headerName: 'Hora', 
+        width: 100,
+        headerAlign: 'center',
+        align: 'center',
+        // Mapeamos para o valor de 'createdAt' da linha
+        valueGetter: (value, row) => row.createdAt,
+        // Formata apenas a Hora
+        valueFormatter: (value: number[]) => {
+          if (!value || !Array.isArray(value) || value.length < 5) return '';
+          const [,,, hour, minute, second] = value;
+          // HH:mm:ss
+          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second || 0).padStart(2, '0')}`;
         },
       },
       { 
@@ -222,31 +237,7 @@ export default function RegisterPage() {
             </Typography>
           </Box>
         ),
-      },
-      { 
-        field: 'telefone', 
-        headerName: 'WhatsApp', 
-        width: 140,
-        headerAlign: 'center',
-        align: 'center',
-        renderCell: (params) => (
-          params.value ? (
-            <Chip
-              label={params.value}
-              size="small"
-              icon={<Box component="span" sx={{ fontSize: '16px' }}>📱</Box>}
-              sx={{
-                bgcolor: '#e8f5e9',
-                color: '#2e7d32',
-                fontWeight: 500,
-                fontSize: '12px'
-              }}
-            />
-          ) : (
-            <Typography variant="caption" color="text.secondary">-</Typography>
-          )
-        )
-      }, 
+      },      
       { 
         field: 'statusAtivo', 
         headerName: 'Status', 
@@ -534,11 +525,15 @@ export default function RegisterPage() {
               pageSizeOptions={[10, 25, 50, 100]}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              paginationMode='server'
-              autoHeight={false}
+              paginationMode='server'              
               slots={{
                 pagination: CustomPagination,
                 noRowsOverlay: CustomNoRowsOverlay
+              }}
+              initialState={{
+                sorting: {
+                  sortModel: [{ field: 'createdAt', sort: 'desc'}],
+                }
               }}
               sx={{
                 border: 'none',
