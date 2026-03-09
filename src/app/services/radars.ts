@@ -1,6 +1,7 @@
 import { PageResponse } from "@/model/response/PageResponse";
 import { GeoSearchParams, GeoSearchResponse, LocalSearchParams, RadarLocationDTO, RadarsDTO } from "../types/types";
 import api from "./client";
+import { log } from "console";
 
 // DTOs para o novo Domínio (Gestão de Rodovias)
 export interface RodoviaDTO {
@@ -53,6 +54,8 @@ class RadarsService {
   async getLatestRadars(): Promise<RadarEvent[]> {
     try {
       const { data } = await api.get<RadarEvent[]>('/radares/ultimos-processados');
+      console.log("Ultimos-processados ===> ", data);
+      
       return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('❌ Erro ao buscar últimos radares:', error);
@@ -210,12 +213,16 @@ class RadarsService {
    * Endpoint: GET /radares/rodovias
    * Use isso para popular o Select de Rodovias.
    */
-  async getRodovias(): Promise<RodoviaDTO[]> {
+  async getRodovias(concessionaria?: string): Promise<RodoviaDTO[]> {
     try {
       console.log('📍 Buscando rodovias...');
-      const { data } = await api.get<RodoviaDTO[]>('/radares/rodovias');
-      console.log(`✅ ${data.length} rodovias carregadas`);
-      return data;
+      const url = concessionaria 
+        ? `/radares/rodovias?concessionaria=${concessionaria}` 
+        : '/radares/rodovias';
+      const response = await api.get<RodoviaDTO[]>(url);
+      console.log("REsponse getRodovias ===> ",response);
+      
+      return response.data;
     } catch (error) {
       console.error("❌ Erro ao buscar rodovias:", error);
       return [];
@@ -227,7 +234,7 @@ class RadarsService {
    * Endpoint: GET /radares/rodovias/{id}/kms
    * Requer que o frontend saiba o ID da rodovia selecionada.
    */
-  async getKmsByRodoviaId(rodoviaId: number): Promise<KmRodoviaDTO[]> {
+  async getKmsByRodoviaId(rodoviaId: number, concessionaria: string): Promise<KmRodoviaDTO[]> {
    if (!rodoviaId) {
       console.warn('⚠️ ID de rodovia não fornecido');
       return [];
@@ -235,7 +242,9 @@ class RadarsService {
 
     try {
       console.log(`📍 Buscando KMs da rodovia ${rodoviaId}...`);
-      const { data } = await api.get<KmRodoviaDTO[]>(`/radares/rodovias/${rodoviaId}/kms`);
+      const { data } = await api.get<KmRodoviaDTO[]>(`/radares/rodovias/${rodoviaId}/kms`, {
+        params: { concessionaria }
+      });
       
       // Ordena numericamente
       const sorted = data.sort((a, b) => parseFloat(a.valor) - parseFloat(b.valor));
