@@ -1,7 +1,7 @@
 'use client';
 // Este componente usa hooks do Next.js, então precisa ser um Client Component
 
-import { Home, BarChart, People, Assignment, ListAlt, Close, Settings, Info, HelpOutline, MoreVert, Menu as Menus, Search, ImageSearch, Delete, AddCircleOutline, ImportantDevices, AssistantOutlined, Logout } from '@mui/icons-material';
+import { Home, BarChart, People, Assignment, ListAlt, Close, Settings, Info, HelpOutline, MoreVert, Menu as Menus, Search, ImageSearch, Delete, AddCircleOutline, ImportantDevices, AssistantOutlined, Logout, NoCrashOutlined } from '@mui/icons-material';
 import { Avatar, Box, Divider, IconButton, Menu, MenuItem, Typography } from '@mui/material';
 import { lightBlue } from '@mui/material/colors';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ const navItems = [
   { name: 'Monitoramento', icon: <ImportantDevices />, path: '/monitoring-page' },
   { name: 'Geolacalização', icon: <AssistantOutlined />, path: '/pesquisa-geo' },
   { name: 'Telegram Users', icon: <People />, path: '/telegram-users' },
-  { name: "Análise com IA", icon: <Image src={iaIcon} alt='IA' width={24} height={24} style={{ backgroundColor: '#ffbd00'}}/> ,path: "/analise-ia"}
+  { name: "Análise com IA", icon: <NoCrashOutlined /> ,path: "/analise-comboio" },
   //{ name: 'Logs do Sistema', path: '/logs' }, 
 ];
 

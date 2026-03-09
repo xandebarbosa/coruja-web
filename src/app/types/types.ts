@@ -134,3 +134,20 @@ export interface UsuarioTelegram {
   dataCadastro: string;
   ultimoAcesso: string;
 }
+
+export interface EncontroDTO {
+  concessionaria: string;
+  rodovia: string;
+  praca: string;
+  km: string;
+  sentido: string;
+  horaAlvo: string;
+  horaSuspeito: string;
+  diferencaSegundos: number;
+}
+
+export interface VeiculoSuspeitoDTO {
+  placa: string;
+  quantidadeEncontros: number;
+  locaisDeEncontro: EncontroDTO[];
+}
