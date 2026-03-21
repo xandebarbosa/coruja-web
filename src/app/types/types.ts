@@ -137,6 +137,7 @@ export interface UsuarioTelegram {
 
 export interface EncontroDTO {
   concessionaria: string;
+  data?: string;  
   rodovia: string;
   praca: string;
   km: string;

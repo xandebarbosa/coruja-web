@@ -2,6 +2,7 @@
 // Este componente usa hooks do Next.js, então precisa ser um Client Component
 
 import { Home, BarChart, People, Assignment, ListAlt, Close, Settings, Info, HelpOutline, MoreVert, Menu as Menus, Search, ImageSearch, Delete, AddCircleOutline, ImportantDevices, AssistantOutlined, Logout, NoCrashOutlined } from '@mui/icons-material';
+import InsightsIcon from '@mui/icons-material/Insights';
 import { Avatar, Box, Divider, IconButton, Menu, MenuItem, Typography } from '@mui/material';
 import { lightBlue } from '@mui/material/colors';
 import { useState } from 'react';
@@ -19,10 +20,11 @@ const navItems = [
   { name: "Pesquisa Placa", icon: <Search />, path: "/pesquisa-placa" },
   { name: "Pesquisa Local", icon: <ImageSearch />, path: "/pesquisa-local"},
   { name: "Cadastro", icon: <AddCircleOutline />, path: '/register-page'},  
-  { name: 'Monitoramento', icon: <ImportantDevices />, path: '/monitoring-page' },
-  { name: 'Geolacalização', icon: <AssistantOutlined />, path: '/pesquisa-geo' },
-  { name: 'Telegram Users', icon: <People />, path: '/telegram-users' },
-  { name: "Análise com IA", icon: <NoCrashOutlined /> ,path: "/analise-comboio" },
+  { name: 'Monitoramento', icon: <ImportantDevices />, path: '/monitoring-page'},
+  { name: 'Geolacalização', icon: <AssistantOutlined />, path: '/pesquisa-geo'},
+  { name: 'Telegram Users', icon: <People />, path: '/telegram-users'},
+  { name: "Análise Comboio", icon: <NoCrashOutlined /> ,path: "/analise-comboio"},
+  { name: "Análise Seletiva", icon: <InsightsIcon /> ,path: "/analise-seletiva"},
   //{ name: 'Logs do Sistema', path: '/logs' }, 
 ];
 

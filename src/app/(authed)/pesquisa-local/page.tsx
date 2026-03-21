@@ -5,7 +5,7 @@ import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 import { radarsService } from '../../services'
 import { LocalSearchParams, RadarsDTO } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
-import { Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel, Menu, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
 import { exportToExcel } from '../../components/ExportExcel';
 import { toast } from 'react-toastify';
 import { set } from 'react-hook-form';
@@ -452,6 +452,7 @@ export default function ConsultaLocal() {
                 <MenuItem value="eixo">Eixo</MenuItem>
                 <MenuItem value="rondon">Rondon</MenuItem>
                 <MenuItem value="entrevias">Entrevias</MenuItem>
+                <MenuItem value="monitorasp">MonitoraSP</MenuItem>
               </Select>
             </FormControl>       
 

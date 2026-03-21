@@ -1,32 +1,30 @@
 import React from 'react';
-import { DataGrid, GridColDef, GridRowSelectionModel } from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { RadarsDTO } from '../../../types/types';
 
 interface SelectivePassagesTableProps {
-    passagens: (RadarsDTO & { uid?: string })[]; 
-    rowSelectionModel: GridRowSelectionModel;
-    onSelectionChange: (newSelection: GridRowSelectionModel) => void; 
+    passagens: (RadarsDTO & { uid?: string })[];
+    rowSelectionModel: any[];
+    onSelectionChange: (newSelection: any[]) => void;
 }
 
-export default function SelectivePassagesTable({ 
-    passagens, 
-    rowSelectionModel, 
-    onSelectionChange 
+export default function SelectivePassagesTable({
+    passagens,
+    rowSelectionModel,
+    onSelectionChange,
 }: SelectivePassagesTableProps) {
-    
-    // Definição das colunas baseadas na sua imagem e estrutura de dados
+
     const columns: GridColDef[] = [
-        { 
-            field: 'data', 
-            headerName: 'Data', 
+        {
+            field: 'data',
+            headerName: 'Data',
             width: 130,
             valueGetter: (params) => {
-                // Formatação simples para garantir que a data fica bonita na tabela (opcional)
                 if (!params) return '';
                 if (typeof params === 'string') return params;
                 const dataObj = new Date(params);
                 return dataObj.toLocaleDateString('pt-BR');
-            }
+            },
         },
         { field: 'hora', headerName: 'Hora', width: 130 },
         { field: 'concessionaria', headerName: 'Concessionária', width: 150 },
@@ -35,23 +33,29 @@ export default function SelectivePassagesTable({
         { field: 'sentido', headerName: 'Sentido', width: 120 },
     ];
 
-    if (!passagens || passagens.length === 0) {
-        return null; // Não renderiza nada se não houver dados
-    }
+    if (!passagens || passagens.length === 0) return null;
 
     return (
         <div style={{ height: 400, width: '100%', backgroundColor: 'white' }}>
             <DataGrid
                 rows={passagens}
                 columns={columns}
-                // O DataGrid exige um ID único para funcionar corretamente com as checkboxes
-                getRowId={(row) => row.uid || row.id} 
+                getRowId={(row) => row.uid || row.id}
                 checkboxSelection
-                disableRowSelectionOnClick // Evita selecionar ao clicar no texto da linha, apenas na checkbox
+                disableRowSelectionOnClick
+                // MUI X v8 requires { type: 'include'|'exclude', ids: Set<GridRowId> }
+                rowSelectionModel={{ type: 'include', ids: new Set(rowSelectionModel) } as any}
                 onRowSelectionModelChange={(newSelection) => {
-                    onSelectionChange(newSelection);
+                    // Extract the Set<GridRowId> from the v8 model shape
+                    const raw = newSelection as unknown as any;
+                    if (raw && typeof raw === 'object' && raw.ids instanceof Set) {
+                        onSelectionChange(Array.from(raw.ids));
+                    } else if (Array.isArray(raw)) {
+                        onSelectionChange(raw);
+                    } else {
+                        onSelectionChange([]);
+                    }
                 }}
-                rowSelectionModel={rowSelectionModel}
                 initialState={{
                     pagination: {
                         paginationModel: { page: 0, pageSize: 10 },
