@@ -25,6 +25,7 @@
     "axios": "^1.8.4",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
+    "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.501.0",

@@ -31,6 +31,31 @@ import ConvoyResultsTable from '../analise-comboio/componentes/ConvoyResultsTabl
 import SelectivePassagesTable from '../analise-seletiva/componentes/SelectivePassagesTable';
 import { exportToExcel } from '@/app/components/ExportExcel';
 import { radarsService } from '@/app/services';
+import { exportToExcelAnalise } from './componentes/ExportExcelAnalise';
+
+function formatarData(data: string | null | undefined): string {
+    if (!data) return '—';
+
+    // Se a data já chegar no padrão YYYY-MM-DD, nós fatiamos e invertemos
+    if (typeof data === 'string' && data.includes('-')) {
+        // Divide "2026-03-23" em ["2026", "03", "23"]
+        const partes = data.split('T')[0].split('-'); 
+        
+        if (partes.length === 3) {
+            // Retorna "23/03/2026"
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+    }
+
+    // Fallback para outros formatos que possam vir
+    const dataObj = new Date(data);
+    if (!isNaN(dataObj.getTime())) {
+        // Usa o UTC para evitar que a data volte 1 dia para trás dependendo do fuso do navegador
+        return dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    }
+
+    return '—';
+}
 
 export default function AnaliseSeletivaPage() {
     const [placa, setPlaca] = useState('');
@@ -120,29 +145,29 @@ const handleExportarExcel = async () => {
     }
 
     try {
-        // Como o ExportExcel cria uma linha por objeto, precisamos "achatar" (flat) 
-        // os encontros para que cada um vire uma linha na planilha
+        // Mapeia os dados para ficarem IDÊNTICOS ao modelo fornecido
         const dadosParaExportar = resultadosIA.flatMap((veiculo) => 
             veiculo.locaisDeEncontro.map((encontro) => ({
-                data: encontro.data,
-                hora: encontro.horaSuspeito,
-                placa: veiculo.placa, // Placa do veículo suspeito
-                rodovia: encontro.rodovia,
-                km: encontro.km,
-                sentido: encontro.sentido,
-                praca: encontro.praca || '',
-                // Você pode adicionar uma coluna extra para o total de encontros se desejar
-                'Total de Encontros': veiculo.quantidadeEncontros
+                'DATA': formatarData(encontro.data), // Formata a data se necessário
+                'HORA ALVO': encontro.horaAlvo || '',
+                'HORA SUSPEITO': encontro.horaSuspeito || '',
+                'PLACA': veiculo.placa || '',
+                'LOCAL': encontro.praca || encontro.concessionaria || '', // Ajuste conforme seu conceito de "Local"
+                'SENTIDO': encontro.sentido || '',
+                'SP': encontro.rodovia || '',
+                'KM': encontro.km || '',
+                'REP': veiculo.quantidadeEncontros || 0
             }))
         );
 
-        console.log("Dados formatados para Excel =>", dadosParaExportar);
+        // Opcional: Ordenar por placa para agrupar os encontros do mesmo veículo
+        dadosParaExportar.sort((a, b) => a.PLACA.localeCompare(b.PLACA));
 
         if (dadosParaExportar.length > 0) {
-            exportToExcel(dadosParaExportar, `analise_seletiva_${placa}`);
+            exportToExcelAnalise(dadosParaExportar, `RESULTADO_ANALISE_${placa}`, placa);
             toast.success('✅ Resultados exportados com sucesso!');
         } else {
-            toast.info('ℹ️ Os veículos encontrados não possuem detalhes de local para exportar.');
+            toast.info('ℹ️ Os veículos encontrados não possuem detalhes para exportar.');
         }
 
     } catch (error) {

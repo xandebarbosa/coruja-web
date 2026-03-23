@@ -19,6 +19,32 @@ function formatarTempo(segundosTotal: number) {
     return `${segundos}s`;
 }
 
+// 🔹 Formata data de forma robusta — aceita string, Date ou undefined
+// Mesmo padrão do valueGetter usado no SelectivePassagesTable
+function formatarData(data: string | null | undefined): string {
+    if (!data) return '—';
+
+    // Se a data já chegar no padrão YYYY-MM-DD, nós fatiamos e invertemos
+    if (typeof data === 'string' && data.includes('-')) {
+        // Divide "2026-03-23" em ["2026", "03", "23"]
+        const partes = data.split('T')[0].split('-'); 
+        
+        if (partes.length === 3) {
+            // Retorna "23/03/2026"
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+    }
+
+    // Fallback para outros formatos que possam vir
+    const dataObj = new Date(data);
+    if (!isNaN(dataObj.getTime())) {
+        // Usa o UTC para evitar que a data volte 1 dia para trás dependendo do fuso do navegador
+        return dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    }
+
+    return '—';
+}
+
 function Row({ row }: { row: VeiculoSuspeitoDTO }) {
     const [open, setOpen] = useState(false);
 
@@ -49,6 +75,7 @@ function Row({ row }: { row: VeiculoSuspeitoDTO }) {
                             <Table size="small" aria-label="purchases">
                                 <TableHead>
                                     <TableRow>
+                                        <TableCell className="font-semibold">Data</TableCell>
                                         <TableCell className="font-semibold">Concessionária</TableCell>
                                         <TableCell className="font-semibold">Local (Rodovia / KM)</TableCell>
                                         <TableCell className="font-semibold">Sentido</TableCell>
@@ -60,6 +87,9 @@ function Row({ row }: { row: VeiculoSuspeitoDTO }) {
                                 <TableBody>
                                     {row.locaisDeEncontro.map((encontro, idx) => (
                                         <TableRow key={idx}>
+                                            <TableCell className="font-mono text-sm">
+                                                {formatarData(encontro.data)}
+                                            </TableCell>
                                             <TableCell>{encontro.concessionaria}</TableCell>
                                             <TableCell>{encontro.rodovia} - {encontro.km}</TableCell>
                                             <TableCell>{encontro.sentido}</TableCell>

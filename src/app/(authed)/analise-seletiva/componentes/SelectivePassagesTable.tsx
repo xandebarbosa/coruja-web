@@ -19,12 +19,24 @@ export default function SelectivePassagesTable({
             field: 'data',
             headerName: 'Data',
             width: 130,
-            valueGetter: (params) => {
-                if (!params) return '';
-                if (typeof params === 'string') return params;
-                const dataObj = new Date(params);
-                return dataObj.toLocaleDateString('pt-BR');
-            },
+            valueGetter: (value: any) => {
+            if (!value) return '';
+
+            // Agora o TypeScript sabe que 'value' pode ser avaliado sem reclamar do 'never'
+            if (typeof value === 'string' && value.includes('-')) {
+                const partes = value.split('T')[0].split('-');
+                if (partes.length === 3) {
+                    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+                }
+            }
+
+            const dataObj = new Date(value);
+            if (!isNaN(dataObj.getTime())) {
+                return dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+            }
+
+            return value;
+        },
         },
         { field: 'hora', headerName: 'Hora', width: 130 },
         { field: 'concessionaria', headerName: 'Concessionária', width: 150 },
