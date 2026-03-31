@@ -1,23 +1,21 @@
-import { Client } from '@stomp/stompjs';
 import NextAuth, { AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 
-//Função para renovar o token se necessário (opcional, mas recomendado para tokens longos)
 async function refreshAccessToken(token: any) {
   try {
     const url = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
 
-    // Validação básica para evitar enviar "undefined"
     const clientId = process.env.KEYCLOAK_CLIENT_ID;
     const clientSecret = process.env.KEYCLOAK_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      throw new Error("KEYCLOAK_CLIENT_ID ou KEYCLOAK_CLIENT_SECRET não definidos no .env");
+      throw new Error("Credenciais do Keycloak ausentes no .env");
     }
 
     const response = await fetch(url, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       method: "POST",
+      cache: "no-store", // 👈 Essencial no Next.js 15: Garante que o fetch vá direto ao Keycloak
       body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
@@ -25,6 +23,7 @@ async function refreshAccessToken(token: any) {
         refresh_token: token.refreshToken,
       }),
     });     
+    
     const refreshedTokens = await response.json();
 
     if (!response.ok) {
@@ -36,21 +35,19 @@ async function refreshAccessToken(token: any) {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Use o novo refresh token se fornecido
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, 
     };
   } catch (error) {
     console.error("Erro ao renovar token de acesso: ", error);
     return {
       ...token,
-      error: "RefreshAccessTokenError", // Isso gatilha o logout no frontend se tratado lá    
+      error: "RefreshAccessTokenError",
     };
   }  
 }
 
-export const authOptions: AuthOptions = {
-  // Esta é a linha que causa o 401 se 'process.env.NEXTAUTH_SECRET' for undefined
+const authOptions: AuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
-
   providers: [
     KeycloakProvider({
       clientId: process.env.KEYCLOAK_CLIENT_ID || "",
@@ -60,50 +57,65 @@ export const authOptions: AuthOptions = {
   ], 
   session:  {
     strategy: "jwt",
-    // ✅ SOLICITAÇÃO 1: Duração de 24 horas (em segundos)
-    maxAge: 24 * 60 * 60, // 24 horas
+    // Configuração ajustada para manter a sessão sempre ativa continuamente
   },  
-  callbacks: {
+callbacks: {
     async jwt({ token, account, user }) {
-      // Login inicial
+      // 1. LOGIN INICIAL
       if (account && user) {
+        console.log("🟢 [NEXTAUTH] LOGIN INICIAL DETECTADO");
+        console.log("👉 Dados recebidos do Keycloak:", { 
+            expires_at: account.expires_at, 
+            expires_in: account.expires_in 
+        });
+
+        // Cálculo super defensivo: Se falhar tudo, garante 5 minutos (300000ms)
+        const exp = account.expires_at 
+          ? account.expires_at * 1000 
+          : Date.now() + ((account.expires_in as number) * 1000 || 300000);
+
+        console.log("⏰ Token configurado para expirar em:", new Date(exp).toLocaleString());
+
         return {
           ...token,
           accessToken: account.access_token,
-          // ✅ Importante: Salvamos o id_token para usar no Logout depois
           idToken: account.id_token,
           refreshToken: account.refresh_token,
-          accessTokenExpires: account.expires_at ? account.expires_at * 1000 : 0,
-          userRole: "user", // Ajuste conforme sua lógica de roles
-          roles: token.roles // Se vier do profile callback
+          accessTokenExpires: exp,
+          userRole: "user", 
+          roles: token.roles 
         };
       }
 
-      // Se o token ainda não expirou, retorne-o
-      if (Date.now() < (token.accessTokenExpires as number) - 10000) {
+      // 2. VALIDAÇÃO DE EXPIRAÇÃO
+      const tempoRestante = (token.accessTokenExpires as number) - Date.now();
+      
+      if (tempoRestante > 10000) {
+        // Token ainda é válido
         return token;
       }
 
-      // Se expirou, tenta renovar
-      console.log("Token expirado, tentando renovar...");
+      // 3. REFRESH TOKEN
+      console.log(`🟡 [NEXTAUTH] Token expirou (Tempo restante: ${tempoRestante}ms). Tentando renovar...`);
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
-      // Passa os dados do token para a sessão do cliente
+      if (token.error) {
+         console.error("🔴 [NEXTAUTH] Erro injetado na sessão:", token.error);
+      }
       session.user = {
         ...session.user,
         roles: token.roles || [],
       };
-      // Copia o accessToken para a sessão
       session.accessToken = token.accessToken as string;
       session.error = token.error as string;
       session.idToken = token.idToken as string;
       return session;
     },
   },
+
   events: {
-    // Evento opcional para logar saídas
-    async signOut({ token}) {
+    async signOut({ token }) {
       console.log("Usuário deslogou do NextAuth:", token?.name);
     }
   }

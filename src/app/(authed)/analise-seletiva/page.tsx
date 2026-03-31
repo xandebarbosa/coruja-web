@@ -152,6 +152,9 @@ const handleExportarExcel = async () => {
                 'HORA ALVO': encontro.horaAlvo || '',
                 'HORA SUSPEITO': encontro.horaSuspeito || '',
                 'PLACA': veiculo.placa || '',
+                'MARCA/MODELO': veiculo.marcaModelo || '—',  // ✅ Injetado do Detran
+                'COR': veiculo.cor || '—',                   // ✅ Injetado do Detran
+                'MUNICÍPIO': veiculo.municipio || '—',       // ✅ Injetado do Detran
                 'LOCAL': encontro.praca || encontro.concessionaria || '', // Ajuste conforme seu conceito de "Local"
                 'SENTIDO': encontro.sentido || '',
                 'SP': encontro.rodovia || '',

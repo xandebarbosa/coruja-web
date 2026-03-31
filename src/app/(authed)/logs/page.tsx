@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from "react";
-import { searchLogs } from "../services/api";
+import { logsService } from "../../services/logs"; 
 import { Box, Button, Chip, CircularProgress, Paper, TextField, Typography } from "@mui/material";
 
 interface LogEntry {
@@ -21,7 +21,7 @@ export default function LogsPage() {
   const handleSearch = async () => {
     setLoading(true);
     try {
-      const results = await searchLogs(query, 0, 50); // Busca os 50 mais recentes
+      const results = await logsService.searchLogs({ query: query, page: 0, size: 50 }); // Busca os 50 mais recentes
       setLogs(results);
     } catch (error) {
       console.error(error);

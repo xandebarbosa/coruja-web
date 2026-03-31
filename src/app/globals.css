@@ -24,13 +24,161 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  /* Evita scroll horizontal indesejado no mobile */
+  overflow-x: hidden;
 }
 
 html {
   transition: background-color 0.3s, color 0.3s;
+  /* Evita zoom acidental em inputs no iOS */
+  -webkit-text-size-adjust: 100%;
 }
 
-/* styles/globals.css */
+/* ============================================================
+   TABELAS — SCROLL HORIZONTAL NO MOBILE
+   Aplica overflow a qualquer tabela MUI dentro de um card
+   ============================================================ */
+.MuiTableContainer-root {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* DataGrid — permite scroll horizontal em telas pequenas */
+.MuiDataGrid-root {
+  min-width: 0;
+}
+
+.responsive-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* ============================================================
+   TIPOGRAFIA RESPONSIVA
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Reduz h3/h4 do MUI em telas pequenas */
+  .MuiTypography-h3 {
+    font-size: 1.5rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .MuiTypography-h4 {
+    font-size: 1.25rem !important;
+  }
+
+  .MuiTypography-h5 {
+    font-size: 1.1rem !important;
+  }
+
+  /* Padding reduzido nas páginas */
+  .page-container {
+    padding: 12px !important;
+  }
+
+  /* Cards com padding menor */
+  .MuiCardContent-root {
+    padding: 16px !important;
+  }
+
+  /* Botões menores no mobile */
+  .MuiButton-sizeLarge {
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    height: auto !important;
+  }
+
+  /* Chips menores */
+  .MuiChip-root {
+    height: 28px;
+    font-size: 12px;
+  }
+}
+
+/* ============================================================
+   DATAGRID — ALTURA ADAPTÁVEL NO MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+  .mobile-datagrid-wrapper {
+    height: auto !important;
+    min-height: 400px;
+    max-height: 70vh;
+  }
+
+  /* Scroll suave em containers com altura fixa */
+  .MuiDataGrid-virtualScroller {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================================
+   FORMULÁRIOS — INPUTS FULL WIDTH NO MOBILE
+   ============================================================ */
+@media (max-width: 640px) {
+  .MuiTextField-root {
+    width: 100% !important;
+  }
+
+  .MuiFormControl-root {
+    width: 100% !important;
+  }
+}
+
+/* ============================================================
+   MENU LATERAL — SCROLL INTERNO
+   ============================================================ */
+.sidebar-nav {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+/* ============================================================
+   UTILITÁRIOS EXTRAS
+   ============================================================ */
+
+/* Previne que conteúdo de tabela quebre layout */
+.table-cell-no-wrap {
+  white-space: nowrap;
+}
+
+/* Overlay do sidebar mobile */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 40;
+}
+
+/* Sticky action bar no mobile */
+@media (max-width: 768px) {
+  .mobile-action-bar {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 12px 16px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    border-top: 1px solid #e5e7eb;
+  }
+}
+
+/* ============================================================
+   NEXTJS DEV OVERLAY
+   ============================================================ */
 #__next-route-announcer,
 [data-nextjs-dev-overlay] {
   display: none !important;

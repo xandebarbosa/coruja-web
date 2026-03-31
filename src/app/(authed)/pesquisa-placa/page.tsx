@@ -67,7 +67,7 @@ const columns: GridColDef[] = [
   { 
     field: 'rodovia', 
     headerName: 'Rodovia', 
-    width: 180,
+    width: 300,
     headerAlign: 'center',
     align: 'center',
     renderCell: (params) => (
@@ -205,29 +205,20 @@ export default function ConsultaPlaca() {
 
   //Função para copiar para texto
   const handleCopy = async () => {
-    if (!placaInput) {
-      toast.warn("Realize uma busca antes de copiar.");
+    if (!rows || rows.length === 0) {
+      toast.warn("Não há dados na página atual para copiar.");
       return;
     }
 
-    setCopying(true); // Ativa loading do botão copiar
+    setCopying(true);
 
     try {
-      // 1. Busca TODOS os dados da API (mesma lógica da exportação)
-      const allData = await radarsService.searchAllByLocalForExport({ placa: placaInput });
-
-      if (!allData || allData.length === 0) {
-        toast.warn("Nenhum dado encontrado para copiar.");
-        return;
-      }
-
-      // 2. Monta o cabeçalho
-      let textToCopy = `🚗 *Relatório Completo - Placa: ${placaInput}*\n`;
+      // Usa diretamente o estado "rows" que contém os itens da página atual
+      let textToCopy = `🚗 *Relatório de Placa (Página Atual): ${placaInput}*\n`;
       textToCopy += `📅 Gerado em: ${new Date().toLocaleString('pt-BR')}\n`;
-      textToCopy += `📊 Total de Registros: ${allData.length}\n\n`;
+      textToCopy += `📊 Registros copiados: ${rows.length}\n\n`;
 
-      // 3. Itera sobre TODOS os dados retornados
-      allData.forEach((row, index) => {
+      rows.forEach((row, index) => {
         const dataFormatada = new Date(`${row.data}T00:00:00`).toLocaleDateString('pt-BR');
         
         textToCopy += `*${index + 1}. ${dataFormatada} às ${row.hora}*\n`;
@@ -238,15 +229,41 @@ export default function ConsultaPlaca() {
         textToCopy += `--------------------------------\n`;
       });
 
-      // 4. Copia para a área de transferência
-      await navigator.clipboard.writeText(textToCopy);
-      toast.success(`Copiados ${allData.length} registros para a área de transferência!`);
+      // Fallback para cópia em ambientes onde navigator.clipboard não é suportado (HTTP / IP local)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand('copy');
+          if (!successful) {
+            throw new Error('Falha no fallback de cópia');
+          }
+        } catch (err) {
+          console.error('Fallback: Erro ao copiar', err);
+          throw new Error("Não foi possível copiar o texto automaticamente neste navegador/ambiente.");
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+
+      toast.success(`Copiados ${rows.length} registros da página atual para a área de transferência!`);
 
     } catch (err) {
       console.error('Erro ao copiar:', err);
-      toast.error("Erro ao buscar dados completos para cópia.");
+      toast.error("Erro ao copiar os dados para a área de transferência.");
     } finally {
-      setCopying(false); // Desativa loading
+      setCopying(false);
     }
   }
 
@@ -373,7 +390,7 @@ export default function ConsultaPlaca() {
               {/* Botões de Ação */}
               {rowCount > 0 && (
                 <div className="flex gap-2">
-                  <Tooltip title="Copiar TODOS os registros para WhatsApp/Telegram">
+                  <Tooltip title="Copiar registros da PÁGINA ATUALpara WhatsApp/Telegram">
                     <Button
                       variant="outlined"
                       color="primary"

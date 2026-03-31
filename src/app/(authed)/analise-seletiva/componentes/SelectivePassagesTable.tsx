@@ -1,6 +1,7 @@
 import React from 'react';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { RadarsDTO } from '../../../types/types';
+import ResponsiveDataGrid from '../../../components/ResponsiveDataGrid';
 
 interface SelectivePassagesTableProps {
     passagens: (RadarsDTO & { uid?: string })[];
@@ -19,24 +20,13 @@ export default function SelectivePassagesTable({
             field: 'data',
             headerName: 'Data',
             width: 130,
-            valueGetter: (value: any) => {
-            if (!value) return '';
-
-            // Agora o TypeScript sabe que 'value' pode ser avaliado sem reclamar do 'never'
-            if (typeof value === 'string' && value.includes('-')) {
-                const partes = value.split('T')[0].split('-');
-                if (partes.length === 3) {
-                    return `${partes[2]}/${partes[1]}/${partes[0]}`;
-                }
+            headerAlign: 'center',
+            align: 'center',
+            valueFormatter: (value: string) => {
+                if (!value) return '';
+                const date = new Date(`${value}T00:00:00`);
+                return date.toLocaleDateString('pt-BR');
             }
-
-            const dataObj = new Date(value);
-            if (!isNaN(dataObj.getTime())) {
-                return dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-            }
-
-            return value;
-        },
         },
         { field: 'hora', headerName: 'Hora', width: 130 },
         { field: 'concessionaria', headerName: 'Concessionária', width: 150 },
@@ -48,17 +38,15 @@ export default function SelectivePassagesTable({
     if (!passagens || passagens.length === 0) return null;
 
     return (
-        <div style={{ height: 400, width: '100%', backgroundColor: 'white' }}>
+        <ResponsiveDataGrid height={400} minWidth={640}>
             <DataGrid
                 rows={passagens}
                 columns={columns}
                 getRowId={(row) => row.uid || row.id}
                 checkboxSelection
                 disableRowSelectionOnClick
-                // MUI X v8 requires { type: 'include'|'exclude', ids: Set<GridRowId> }
                 rowSelectionModel={{ type: 'include', ids: new Set(rowSelectionModel) } as any}
                 onRowSelectionModelChange={(newSelection) => {
-                    // Extract the Set<GridRowId> from the v8 model shape
                     const raw = newSelection as unknown as any;
                     if (raw && typeof raw === 'object' && raw.ids instanceof Set) {
                         onSelectionChange(Array.from(raw.ids));
@@ -69,12 +57,18 @@ export default function SelectivePassagesTable({
                     }
                 }}
                 initialState={{
-                    pagination: {
-                        paginationModel: { page: 0, pageSize: 10 },
-                    },
+                    pagination: { paginationModel: { page: 0, pageSize: 10 } },
                 }}
                 pageSizeOptions={[5, 10, 20, 50]}
+                sx={{
+                    border: 'none',
+                    '& .MuiDataGrid-columnHeaders': {
+                        bgcolor: '#f8f9fa',
+                        borderBottom: '2px solid #e9ecef',
+                    },
+                    '& .MuiDataGrid-row:hover': { bgcolor: '#fef3e2' },
+                }}
             />
-        </div>
+        </ResponsiveDataGrid>
     );
 }

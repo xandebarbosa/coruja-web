@@ -1,19 +1,21 @@
 import { Button, Card, CardContent, TextField, Typography } from '@mui/material'
 import React, { useState } from 'react'
-import { buscarPorPlaca } from '../services/RadarService';
+import { radarsService } from '../services/radars';
 import DetailsTable from './DetailsTable';
+import { RadarsDTO } from '../types/types';
 
 export default function QueriesCard() {
 
     const [placa, setPlaca] = useState('');
-    const [resultados, setResultados] = useState([]);
+    const [resultados, setResultados] = useState<RadarsDTO[]>([]);
   
     const handleBuscarPlaca = async () => {
       try {
-          const data = await buscarPorPlaca(placa);
-          console.log("Data ==>", data );
+         const response = await radarsService.searchByPlaca(placa);
+          console.log("Response ==>", response);
           
-          setResultados(data);
+          // Extrai o array de dados da nova estrutura paginada (PageResponse)
+          setResultados(response.content || []);
       } catch (error) {
           console.log('Erro ao buscar dados:', error);
           

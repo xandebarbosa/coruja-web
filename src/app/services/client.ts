@@ -1,8 +1,7 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
-import { getSession, signOut } from "next-auth/react";
+// Removi o signOut da importação por enquanto
+import { getSession, signOut } from "next-auth/react"; 
 
-// ✅ CORREÇÃO: Aponta sempre para o proxy do Next.js (mesmo domínio)
-// O Next.js se encarrega de redirecionar para o backend via next.config.ts
 const API_BASE_URL = "/api";
 
 export const api: AxiosInstance = axios.create({
@@ -11,20 +10,20 @@ export const api: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false, // False pois usamos Bearer Token no header
+  withCredentials: false, 
 });
 
-// Interceptor de Request - Adiciona token automaticamente
 api.interceptors.request.use(
   async (config) => {
     const session = await getSession();
     if (session?.accessToken) {
       config.headers.Authorization = `Bearer ${session.accessToken}`;
+    } else {
+      console.warn("⚠️ Requisição feita sem accessToken na sessão local!");
     }
     
-    // Log limpo apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🚀 [${config.method?.toUpperCase()}] ${config.url}`, config.params || '');
+      console.log(`🚀 [${config.method?.toUpperCase()}] ${config.url}`);
     }
     
     return config;
@@ -35,40 +34,36 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor de Response - Tratamento de erros centralizado
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ message?: string }>) => {
     if (error.response) {
       const { status, data, config } = error.response;
       
-      console.error(`❌ [API Error ${status}]:`, {
-        url: config?.url,
-        message: data?.message || error.message,
-      });
+      console.error(`❌ [API Error ${status}]: na rota ${config?.url}`);
+      console.error('Detalhes do backend:', data);
 
       switch (status) {
         case 401:
-          console.warn('🔒 Token inválido/expirado.');
-          // Só desloga se já não estivermos na página de login para evitar loop
+          console.warn('🔒 Backend retornou 401 Unauthorized.');
+          console.warn('⚠️ O signOut automático foi desativado para debug. A tela não vai deslogar.');
+          //A linha abaixo é a causadora do Loop. Vamos mantê-la comentada por agora.
           if (typeof window !== 'undefined' && window.location.pathname !== '/') {
             signOut({ callbackUrl: '/' });
           }
           break;
         case 403:
-          console.error('🚫 Acesso negado. Verifique as permissões.');
+          console.error('🚫 Acesso negado. O backend diz que você não tem a Role necessária.');
           break;
         case 404:
-          console.error('🔍 Recurso não encontrado.');
+          console.error('🔍 Recurso não encontrado no backend.');
           break;
         case 500:
-          console.error('🔥 Erro interno do servidor.');
+          console.error('🔥 Erro interno do servidor (Spring Boot estourou Exception).');
           break;
       }
     } else if (error.request) {
-      console.error("❌ [Network Error] Sem resposta do servidor (Backend offline ou CORS).");
-    } else {
-      console.error('⚙️ Erro de configuração Axios:', error.message);
+      console.error("❌ [Network Error] Sem resposta do servidor. O Gateway pode estar offline ou bloqueando por CORS.");
     }
 
     return Promise.reject(error);

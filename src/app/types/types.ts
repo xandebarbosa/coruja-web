@@ -151,4 +151,7 @@ export interface VeiculoSuspeitoDTO {
   placa: string;
   quantidadeEncontros: number;
   locaisDeEncontro: EncontroDTO[];
+  marcaModelo?: string;
+  cor?: string;
+  municipio?: string;
 }

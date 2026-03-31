@@ -1,0 +1,16 @@
+coruja-web:
+    build:
+      context: ../coruja-web # ou o caminho onde está seu frontend
+    container_name: coruja-web
+    ports:
+      - "3009:3009"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      # Espelha o seu código fonte para dentro do contêiner (ajuste os caminhos se necessário)
+      - ../coruja-web:/app 
+      # Protege a pasta node_modules do contêiner para não conflitar com a da sua máquina
+      - /app/node_modules 
+    command: npm run dev # 👈 Força o modo de desenvolvimento!
+    networks:
+      - radares-net

@@ -1,47 +1,30 @@
 import React, { useState } from 'react';
-import { 
-    Table, TableBody, TableCell, TableContainer, 
-    TableHead, TableRow, Collapse, IconButton, 
-    Box, Typography, Paper 
+import {
+    Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, Collapse, IconButton,
+    Box, Typography, Paper
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { VeiculoSuspeitoDTO } from '../../../types/types';
 
-// 🔹 Função auxiliar para converter Segundos em "Xm Ys"
 function formatarTempo(segundosTotal: number) {
     const minutos = Math.floor(segundosTotal / 60);
     const segundos = segundosTotal % 60;
-
-    if (minutos > 0) {
-        return `${minutos}m ${segundos}s`;
-    }
+    if (minutos > 0) return `${minutos}m ${segundos}s`;
     return `${segundos}s`;
 }
 
-// 🔹 Formata data de forma robusta — aceita string, Date ou undefined
-// Mesmo padrão do valueGetter usado no SelectivePassagesTable
-function formatarData(data: string | null | undefined): string {
+// Aceita string ISO, Date object ou undefined
+function formatarData(data: any): string {
     if (!data) return '—';
-
-    // Se a data já chegar no padrão YYYY-MM-DD, nós fatiamos e invertemos
-    if (typeof data === 'string' && data.includes('-')) {
-        // Divide "2026-03-23" em ["2026", "03", "23"]
-        const partes = data.split('T')[0].split('-'); 
-        
-        if (partes.length === 3) {
-            // Retorna "23/03/2026"
-            return `${partes[2]}/${partes[1]}/${partes[0]}`;
-        }
+    if (typeof data === 'string') {
+        const parsed = new Date(`${data}T00:00:00`);
+        if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString('pt-BR');
+        return '—';
     }
-
-    // Fallback para outros formatos que possam vir
     const dataObj = new Date(data);
-    if (!isNaN(dataObj.getTime())) {
-        // Usa o UTC para evitar que a data volte 1 dia para trás dependendo do fuso do navegador
-        return dataObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-    }
-
+    if (!isNaN(dataObj.getTime())) return dataObj.toLocaleDateString('pt-BR');
     return '—';
 }
 
@@ -51,58 +34,80 @@ function Row({ row }: { row: VeiculoSuspeitoDTO }) {
     return (
         <React.Fragment>
             <TableRow sx={{ '& > *': { borderBottom: 'unset' } }} className="hover:bg-gray-50">
-                <TableCell>
+                <TableCell sx={{ width: 50, px: 1 }}>
                     <IconButton size="small" onClick={() => setOpen(!open)}>
                         {open ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                     </IconButton>
                 </TableCell>
-                <TableCell component="th" scope="row" className="font-bold text-lg">
-                    {row.placa}
+                <TableCell component="th" scope="row" className="font-bold text-base">
+                    {row.placa} 
+                </TableCell>
+                <TableCell>
+                    {row.marcaModelo}
+                </TableCell>
+                <TableCell>
+                    {row.cor}
+                </TableCell>
+                <TableCell>
+                    {row.municipio}
                 </TableCell>
                 <TableCell align="center">
-                    <span className="bg-blue-100 text-blue-800 font-semibold px-3 py-1 rounded-full">
+                    <span className="bg-blue-100 text-blue-800 font-semibold px-3 py-1 rounded-full text-sm whitespace-nowrap">
                         {row.quantidadeEncontros} encontros
                     </span>
                 </TableCell>
             </TableRow>
+
             <TableRow>
                 <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={3}>
                     <Collapse in={open} timeout="auto" unmountOnExit>
-                        <Box sx={{ margin: 2 }} className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                            <Typography variant="h6" gutterBottom component="div" className="text-gray-700">
+                        <Box sx={{ my: 2, mx: { xs: 0, sm: 2 } }} className="bg-gray-50 p-3 rounded-md border border-gray-200">
+                            <Typography
+                                variant="subtitle1"
+                                gutterBottom
+                                component="div"
+                                className="text-gray-700 font-semibold mb-2"
+                            >
                                 📍 Detalhes dos Encontros
                             </Typography>
-                            <Table size="small" aria-label="purchases">
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell className="font-semibold">Data</TableCell>
-                                        <TableCell className="font-semibold">Concessionária</TableCell>
-                                        <TableCell className="font-semibold">Local (Rodovia / KM)</TableCell>
-                                        <TableCell className="font-semibold">Sentido</TableCell>
-                                        <TableCell className="font-semibold">Hora do Alvo</TableCell>
-                                        <TableCell className="font-semibold">Hora do Suspeito</TableCell>
-                                        <TableCell align="right" className="font-semibold">Diferença</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {row.locaisDeEncontro.map((encontro, idx) => (
-                                        <TableRow key={idx}>
-                                            <TableCell className="font-mono text-sm">
-                                                {formatarData(encontro.data)}
-                                            </TableCell>
-                                            <TableCell>{encontro.concessionaria}</TableCell>
-                                            <TableCell>{encontro.rodovia} - {encontro.km}</TableCell>
-                                            <TableCell>{encontro.sentido}</TableCell>
-                                            <TableCell>{encontro.horaAlvo}</TableCell>
-                                            <TableCell>{encontro.horaSuspeito}</TableCell>
-                                            {/* 🔹 Aqui aplicamos a função de conversão */}
-                                            <TableCell align="right" className="font-medium text-red-600">
-                                                {formatarTempo(encontro.diferencaSegundos)}
-                                            </TableCell>
+
+                            {/* Wrapper com scroll horizontal no mobile */}
+                            <Box sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                                <Table
+                                    size="small"
+                                    aria-label="detalhes dos encontros"
+                                    sx={{ minWidth: 600 }}
+                                >
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Data</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Concessionária</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Rodovia / KM</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Sentido</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Hora Alvo</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Hora Suspeito</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Diferença</TableCell>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHead>
+                                    <TableBody>
+                                        {row.locaisDeEncontro.map((encontro, idx) => (
+                                            <TableRow key={idx}>
+                                                <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                                    {formatarData(encontro.data)}
+                                                </TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{encontro.concessionaria}</TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{encontro.rodovia} - {encontro.km}</TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{encontro.sentido}</TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{encontro.horaAlvo}</TableCell>
+                                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{encontro.horaSuspeito}</TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 500, color: '#dc2626', whiteSpace: 'nowrap' }}>
+                                                    {formatarTempo(encontro.diferencaSegundos)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </Box>
                         </Box>
                     </Collapse>
                 </TableCell>
@@ -121,11 +126,15 @@ export default function ConvoyResultsTable({ resultados }: ConvoyResultsTablePro
     return (
         <TableContainer component={Paper} className="shadow-sm">
             <Table aria-label="tabela de veículos suspeitos">
-                <TableHead className="bg-gray-100">
+                <TableHead sx={{ bgcolor: '#f3f4f6' }}>
                     <TableRow>
                         <TableCell width="50" />
-                        <TableCell className="font-bold text-gray-700">Placa do Veículo Acompanhante</TableCell>
-                        <TableCell align="center" className="font-bold text-gray-700">Coincidências de Local/Hora</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#374151' }}>
+                            Placa do Veículo Acompanhante
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700, color: '#374151' }}>
+                            Coincidências de Local/Hora
+                        </TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>

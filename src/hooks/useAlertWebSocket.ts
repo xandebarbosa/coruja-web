@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Client, IFrame } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
+import { Stomp } from '@stomp/stompjs';
 import { getSession, signOut } from 'next-auth/react';
 import { AlertHistoryRow } from '../app/types/types';
 import { toast } from 'react-toastify';
@@ -9,6 +9,7 @@ export const useAlertWebSocket = (onNewAlert: (alert: AlertHistoryRow) => void) 
     const clientRef = useRef<Client | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const retryCount = useRef(0);
+    const SockJS = require('sockjs-client');
 
     const connect = useCallback(async () => {
         // Evita múltiplas conexões

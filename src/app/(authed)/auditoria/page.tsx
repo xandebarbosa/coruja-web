@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from "react";
-import { searchLogs } from  "../../services/radars"; // Usamos a mesma API de logs
+import { logsService } from "../../services/logs";
 import { Box, Button, Card, CardContent, Chip, CircularProgress, Paper, TextField, Typography } from "@mui/material";
 import { Person, Label, HistoryToggleOff, Lock } from '@mui/icons-material';
 import { useSession } from "next-auth/react";
@@ -40,7 +40,7 @@ export default function AuditoriaPage() {
         setLoading(true);
         try {
             // A API é a mesma, só muda a query que enviamos
-            const results = await searchLogs(query, 0, 50); // Busca os 50 mais recentes
+            const results = await logsService.searchLogs({ query: query, page: 0, size: 50 }); // Busca os 50 mais recentes
             setLogs(results);
         } catch (error) {
             console.error(error);
