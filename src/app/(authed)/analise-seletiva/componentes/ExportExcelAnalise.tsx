@@ -20,6 +20,9 @@ export async function exportToExcelAnalise(dados: any[], nomeArquivo: string, pl
         { key: 'HORA ALVO', width: 14 },
         { key: 'HORA SUSPEITO', width: 16 },
         { key: 'PLACA', width: 12 },
+        { key: 'MARCA/MODELO', width: 40 },
+        { key: 'COR', width: 20 },
+        { key: 'MUNICÍPIO', width: 25 },        
         { key: 'LOCAL', width: 15 },
         { key: 'SENTIDO', width: 12 },
         { key: 'SP', width: 10 },
@@ -29,7 +32,7 @@ export async function exportToExcelAnalise(dados: any[], nomeArquivo: string, pl
 
     // 3. ⭐️ LINHA 1: TÍTULO COM A PLACA ALVO ⭐️
     const tituloRow = worksheet.addRow([`ANÁLISE DE COMBOIO - VEÍCULO ALVO: ${placaAlvo.toUpperCase()}`]);
-    worksheet.mergeCells('A1:H1'); // Mescla da coluna A até a H
+    worksheet.mergeCells('A1:L1'); // Mescla da coluna A até a H
     
     // Estiliza a linha de título (Fundo escuro, letra branca e maior)
     const tituloCell = worksheet.getCell('A1');
@@ -43,7 +46,7 @@ export async function exportToExcelAnalise(dados: any[], nomeArquivo: string, pl
     tituloRow.height = 30; // Deixa a linha do título mais alta
 
     // 4. LINHA 2: CABEÇALHOS DA TABELA
-    const headerRow = worksheet.addRow(['DATA', 'HORA ALVO', 'HORA SUSPEITO', 'PLACA', 'CONCESSIONÁRIA', 'SENTIDO', 'SP', 'KM', 'REP']);
+    const headerRow = worksheet.addRow(['DATA', 'HORA ALVO', 'HORA SUSPEITO', 'PLACA', 'MARCA/MODELO', 'COR', 'MUNICÍPIO', 'LOCAL', 'SENTIDO', 'SP', 'KM', 'REP']);
     headerRow.eachCell(cell => {
         cell.font = { bold: true };
         cell.fill = {

@@ -7,10 +7,13 @@ export interface RadarsDTO {
     hora: Date;
     placa: string;
     praca?: string;
+    concessionaria?: string;
+    concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
 }
 
 export interface LocalSearchParams {
-  concessionaria: string;
+  concessionarias?: string;
+  concessionaria?: string; // Mantemos para compatibilidade, mas o plural é o recomendado
   rodovia?: string;
   praca?: string;
   km?: string;

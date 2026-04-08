@@ -63,27 +63,37 @@ export default function MonitoramentoRealtimePage() {
     //const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
     
 
-    // 1. Função de Ordenação Robusta (Aceita Array [ano, mes, dia] ou String ISO)
-    // --- 1. Função de Ordenação (Memoizada para evitar erro do useEffect) ---
+    // Função de Ordenação Blindada contra Null e Strings
     const sortAlerts = useCallback((alerts: AlertHistoryRow[]): AlertHistoryRow[] => {
-    return [...alerts].sort((a, b) => {
-        const getTime = (dateVal: any, timeVal: any) => {
-            // Converte o formato do CSV/API [2026, 1, 30] e [12, 34, 52] para Timestamp
-            if (Array.isArray(dateVal) && Array.isArray(timeVal)) {
-                return new Date(
-                    dateVal[0], 
-                    dateVal[1] - 1, 
-                    dateVal[2], 
-                    timeVal[0], 
-                    timeVal[1], 
-                    (timeVal[2] || 0)
-                ).getTime();
-            }
-            return 0;
-        };
-        return getTime(b.data, b.hora) - getTime(a.data, a.hora); // Decrescente 
-    });
-}, []);
+        if (!alerts || !Array.isArray(alerts)) return []; // Proteção extra
+
+        return [...alerts].sort((a, b) => {
+            const getTimestamp = (dateVal: any, timeVal: any) => {
+                if (!dateVal || !timeVal) return 0; // Previne quebra de tela
+
+                // Se o Java enviar como Array: [2026, 4, 2] e [15, 15, 27]
+                if (Array.isArray(dateVal) && Array.isArray(timeVal)) {
+                    return new Date(
+                        dateVal[0], 
+                        dateVal[1] - 1, 
+                        dateVal[2], 
+                        timeVal[0], 
+                        timeVal[1], 
+                        timeVal[2] || 0
+                    ).getTime();
+                }
+                
+                // Se o Java enviar como String: "2026-04-02" e "15:15:27"
+                if (typeof dateVal === 'string' && typeof timeVal === 'string') {
+                    return new Date(`${dateVal}T${timeVal}`).getTime();
+                }
+
+                return 0;
+            };
+
+            return getTimestamp(b.data, b.hora) - getTimestamp(a.data, a.hora);
+        });
+    }, []);
 
     // ========================================================================
     // SISTEMA DE NOTIFICAÇÕES
@@ -129,7 +139,7 @@ export default function MonitoramentoRealtimePage() {
             const data = await monitoringService.getAlertHistory({
                 page: paginationModel.page,
                 size: paginationModel.pageSize,
-                sort: 'dataHora,desc' // Ordena por dataHora decrescente
+                //sort: 'dataHora,desc' // Ordena por dataHora decrescente
             });
 
             console.log("Data fetchHistory  ==>", data);
@@ -205,14 +215,18 @@ export default function MonitoramentoRealtimePage() {
                                 const newAlert:  AlertHistoryRow =  JSON.parse(message.body);
                                 console.log('📩 Novo Alerta:', newAlert);
 
-                                // Verifica se já foi processado
-                                if (processedAlertsRef.current.has(newAlert.id)) {
-                                    console.log('⚠️ Alerta duplicado ignorado:', newAlert.id);
-                                    return;
-                                }
+                                setRows((currentRows) => {
+                                    // Previne linhas duplicadas na tabela
+                                    if (currentRows.some(r => r.id === newAlert.id)) {
+                                        return currentRows;
+                                    }
 
-                                // Marca como processado
-                                processedAlertsRef.current.add(newAlert.id);
+                                    // Junta o novo registro aos atuais
+                                    const updatedRows = [newAlert, ...currentRows];
+                    
+                                    // Ordena novamente para garantir que fique no topo e fatia no tamanho da página (ex: 25)
+                                    return sortAlerts(updatedRows).slice(0, paginationModel.pageSize);
+                                });
 
                                 // Atualiza a lista
                                 setRows((prev) => sortAlerts([newAlert, ...prev]));
@@ -224,7 +238,7 @@ export default function MonitoramentoRealtimePage() {
                                 setRowCount(prev => prev + 1);
             
                                 // Toca o som (você pode decidir se quer tocar som para repetidos ou não)
-                                notifyNewAlert(newAlert.placa);
+                                //notifyNewAlert(newAlert.placa);
                             } catch (error) {
                                 console.error('❌ Erro ao processar alerta:', error);
                             }
@@ -345,9 +359,23 @@ export default function MonitoramentoRealtimePage() {
             width: 130,
             headerAlign: 'center',
             align: 'center',
-            valueFormatter: (value: number[]) => {
-              if (!Array.isArray(value)) return '';
-              return `${String(value[2]).padStart(2, '0')}/${String(value[1]).padStart(2, '0')}/${value[0]}`;
+            valueFormatter: (value: any) => {
+                if (!value) return 'N/A';
+                
+                // Formata caso venha como array [2026, 4, 2]
+                if (Array.isArray(value)) {
+                    return `${String(value[2]).padStart(2, '0')}/${String(value[1]).padStart(2, '0')}/${value[0]}`;
+                }
+                
+                // Formata caso venha como texto "2026-04-02"
+                if (typeof value === 'string') {
+                    const parts = value.split('-');
+                    if (parts.length === 3) {
+                        return `${parts[2]}/${parts[1]}/${parts[0]}`; // Retorna 02/04/2026
+                    }
+                    return value;
+                }
+                return 'N/A';
             }
         },
         { 
@@ -356,10 +384,19 @@ export default function MonitoramentoRealtimePage() {
             width: 100,
             headerAlign: 'center',
             align: 'center',
-            valueFormatter: (value: number[]) => {
-              if (!Array.isArray(value)) return '';
-              return `${String(value[0]).padStart(2, '0')}:${String(value[1]).padStart(2, '0')}:${String(value[2] || 0).padStart(2, '0')}`;
-            } 
+            valueFormatter: (value: any) => {
+                if (!value) return 'N/A';
+                
+                if (Array.isArray(value)) {
+                    return `${String(value[0]).padStart(2, '0')}:${String(value[1]).padStart(2, '0')}:${String(value[2] || 0).padStart(2, '0')}`;
+                }
+                
+                if (typeof value === 'string') {
+                    // Já vem como '15:15:27' então só exibe
+                    return value;
+                }
+                return 'N/A';
+            }
         },
         { 
           field: 'placa', 
@@ -395,7 +432,7 @@ export default function MonitoramentoRealtimePage() {
           headerAlign: 'center',
           align: 'center',
           renderCell: (params) => (
-            <Typography sx={{ fontWeight: 600, color: '#14213d', fontSize: '14px', letterSpacing: '0.5px' }}>
+            <Typography sx={{ fontWeight: 600, color: '#14213d', fontSize: '14px', letterSpacing: '0.5px', lineHeight: '3.5'}}>
               {params.value}
             </Typography>
           )
@@ -446,6 +483,7 @@ export default function MonitoramentoRealtimePage() {
                   borderRadius: 1,
                   borderLeft: '3px solid #fca311',
                   width: '100%'
+                  
                 }}
               >
                 <Typography 

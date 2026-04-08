@@ -214,9 +214,9 @@ export default function ConsultaPlaca() {
 
     try {
       // Usa diretamente o estado "rows" que contém os itens da página atual
-      let textToCopy = `🚗 *Relatório de Placa (Página Atual): ${placaInput}*\n`;
-      textToCopy += `📅 Gerado em: ${new Date().toLocaleString('pt-BR')}\n`;
-      textToCopy += `📊 Registros copiados: ${rows.length}\n\n`;
+      let textToCopy = `🚗 *Relatório da Placa: ${placaInput}*\n`;
+      textToCopy += `📅 Gerado em: ${new Date().toLocaleString('pt-BR')}\n\n`;
+      //textToCopy += `📊 Registros copiados: ${rows.length}\n\n`;
 
       rows.forEach((row, index) => {
         const dataFormatada = new Date(`${row.data}T00:00:00`).toLocaleDateString('pt-BR');

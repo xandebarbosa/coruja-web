@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 
 const AVAILABLE_SOUNDS = [
-    { label: 'Sirene Padrão', url: '/public/sounds/police-operation-siren.mp3', icon: '🚨' },
-    { label: 'Sirene Guerra', url: '/public/sounds/alarme-guerra.mp3', icon: '⚠️' },
-    { label: 'Sirene Alarme', url: '/public/sounds/alarme-intelbras.mp3', icon: '🔔' }
+    { label: 'Sirene Padrão', url: '/sounds/police-operation-siren.mp3', icon: '🚨' },
+    { label: 'Sirene Guerra', url: '/sounds/alarme-guerra.mp3', icon: '⚠️' },
+    { label: 'Sirene Alarme', url: '/sounds/alarme-intelbras.mp3', icon: '🔔' }
 ];
 
 const AUDIO_DURATION = 4000; // 4 segundos
@@ -19,136 +19,120 @@ export default function UseAudioSystem() {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const isUnlockedRef = useRef(false);
 
-    // Carrega preferências do localStorage
+    // 1. CARREGA PREFERÊNCIAS E LIMPA O CACHE ANTIGO
     useEffect(() => {
         const savedVolume = localStorage.getItem('audioVolume');
         const savedSource = localStorage.getItem('selectedAudioSource');
 
         if (savedVolume) setAudioVolume(parseFloat(savedVolume));
-        if (savedSource) setAudioSource(savedSource);
-    },[])
+        
+        if (savedSource) {
+            // CORREÇÃO CRÍTICA: Se o cache antigo ainda tiver "/public", removemos ele aqui
+            const cleanSource = savedSource.replace('/public', '');
+            
+            // Valida se o som limpo existe na nossa lista, senão volta pro padrão
+            const isValidSound = AVAILABLE_SOUNDS.some(s => s.url === cleanSource);
+            setAudioSource(isValidSound ? cleanSource : AVAILABLE_SOUNDS[0].url);
+        }
+    }, []);
 
-    // Cria e configura o objeto de áudio
+    // 2. ATUALIZA SOMENTE O VOLUME (Sem destruir e recriar o arquivo de áudio)
     useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = audioVolume;
+        }
+        // Salva a alteração no cache
+        localStorage.setItem('audioVolume', String(audioVolume));
+    }, [audioVolume]);
 
-        console.log('🔊 Criando objeto de áudio:', audioSource);
+    // 3. GERENCIA A CRIAÇÃO DO ÁUDIO (Executa APENAS quando troca o som no menu)
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        console.log('🔊 Preparando áudio:', audioSource);
+        setAudioStatus('Carregando...');
 
         const audio = new Audio(audioSource);
-        audio.src = audioSource;
         audio.volume = audioVolume;
         audio.preload = 'auto'; // Pré-carrega o áudio
 
-        // Flag para saber quando está pronto
         let isLoaded = false;
 
         const handleCanPlay = () => {
             if (!isLoaded) {
                 isLoaded = true;
-                console.log('✅ Áudio pode ser reproduzido');
-                // Só marca como pronto se já foi desbloqueado
+                console.log('✅ Áudio pronto para uso');
                 if (isUnlockedRef.current) {
                     setIsAudioReady(true);
-                    setAudioStatus('✅ Pronto para reproduzir');
+                    setAudioStatus('✅ Áudio ativo');
+                } else {
+                    setAudioStatus('Aguardando interação');
                 }
             }
         };
 
-        const handleLoadedData = () => {
-            console.log('📦 Dados do áudio carregados');
-        };
-
         const handleError = (e: Event) => {
-            console.error('❌ Erro ao carregar áudio:', e);
+            // Ignora o erro se ele for causado pelo desmonte do componente
+            if (!audio.getAttribute('src')) return;
+            
+            console.error('❌ Erro no caminho do áudio:', audioSource);
             setAudioStatus('❌ Erro ao carregar');
-            toast.error('Arquivo de áudio não encontrado. Verifique a pasta /public/sounds/');
+            toast.error('Arquivo de áudio não encontrado. Verifique a pasta public/sounds');
         };
 
-
-
-        // Listener para verificar quando o áudio está pronto para tocar
         audio.addEventListener('canplaythrough', handleCanPlay);
-        audio.addEventListener('loadeddata', handleLoadedData);
         audio.addEventListener('error', handleError);
 
         audioRef.current = audio;
-
-        // Salva preferências no localStorage
         localStorage.setItem('selectedAudioSource', audioSource);
-        localStorage.setItem('audioVolume', String(audioVolume));
 
         return () => {
             audio.removeEventListener('canplaythrough', handleCanPlay);
-            audio.removeEventListener('loadeddata', handleLoadedData);
             audio.removeEventListener('error', handleError);
             audio.pause();
-            audio.src = '';
-        }
-    },[audioSource, audioVolume]);
+            // Correção: Cancela o download do cache em andamento sem gerar erro no console
+            audio.removeAttribute('src'); 
+            audio.load(); 
+        };
+    }, [audioSource]); // Removemos o audioVolume das dependências!
 
     /**
      * Desbloqueia o áudio - DEVE SER CHAMADO POR INTERAÇÃO DO USUÁRIO
      */
     const unlockAudio = useCallback(async () => {
-        if (isUnlockedRef.current) {
-            console.log('ℹ️ Áudio já desbloqueado');
-            return true;
-        }
+        if (isUnlockedRef.current) return true;
 
-        console.log('🔓 Desbloqueando áudio...');
-        setAudioStatus('Desbloqueando...');
-        
-        if (!audioRef.current) {
-            console.error('❌ Áudio não inicializado');
-            return false;
-        }
+        if (!audioRef.current) return false;
 
         try {
             const audio = audioRef.current;
-            
-            // Salva configurações originais
             const originalVolume = audio.volume;
             
-            // Configura para teste silencioso
-            audio.volume = 0.01; // Volume bem baixo
+            audio.volume = 0.01; 
             audio.muted = true;
-            audio.currentTime = 0;
             
-            // Tenta tocar
             await audio.play();
-            console.log('✅ Play silencioso bem-sucedido');
             
-            // Para imediatamente
             audio.pause();
             audio.currentTime = 0;
-            
-            // Restaura configurações
             audio.muted = false;
             audio.volume = originalVolume;
             
-            // Marca como desbloqueado
             isUnlockedRef.current = true;
             setIsAudioReady(true);
             setAudioStatus('✅ Áudio ativo');
             
-            console.log('✅ Áudio desbloqueado e pronto!');
-            
-            toast.success('🔊 Sistema de áudio ativado!', {
-                position: 'bottom-right',
-                autoClose: 2000
-            });
-            
             return true;
             
         } catch (error) {
-            console.error('❌ Falha ao desbloquear:', error);
-            setAudioStatus('❌ Clique para ativar');
+            console.warn('⚠️ Falha silenciosa ao desbloquear (Aguardando clique na tela)');
             isUnlockedRef.current = false;
             setIsAudioReady(false);
             return false;
         }
     }, []);
 
-    // Auto-desbloquear na primeira interação
+    // Auto-desbloquear na primeira interação na tela
     useEffect(() => {
         const handleInteraction = () => {
             if (!isUnlockedRef.current) {
@@ -156,9 +140,7 @@ export default function UseAudioSystem() {
             }
         };
 
-        // Múltiplos eventos para garantir
         const events = ['click', 'touchstart', 'keydown'];
-        
         events.forEach(event => {
             document.addEventListener(event, handleInteraction, { once: true, passive: true });
         });
@@ -171,79 +153,41 @@ export default function UseAudioSystem() {
     }, [unlockAudio]);
 
     /**
-     * Reproduz o som - VERSÃO ROBUSTA E SEGURA
+     * Reproduz o som
      */
     const playSound = useCallback(async () => {
-        console.log('🔊 playSound chamado', {
-            ready: isAudioReady,
-            unlocked: isUnlockedRef.current,
-            audioExists: !!audioRef.current
-        });
-
-        // Se não está pronto, tenta desbloquear primeiro
         if (!isUnlockedRef.current) {
-            console.warn('⚠️ Áudio não desbloqueado. Tentando desbloquear...');
             const unlocked = await unlockAudio();
-            if (!unlocked) {
-                toast.warning('👆 Clique em qualquer lugar para ativar o som', {
-                    position: 'bottom-right'
-                });
-                return;
-            }
+            if (!unlocked) return; // Navegador ainda bloqueando, ignora silenciosamente
         }
 
-        if (!audioRef.current) {
-            console.error('❌ Objeto de áudio não existe');
-            return;
-        }
+        if (!audioRef.current) return;
 
         try {
             const audio = audioRef.current;
             
-            // Para qualquer reprodução anterior
             audio.pause();
             audio.currentTime = 0;
             
-            // Garante configurações corretas
-            audio.muted = false;
-            audio.volume = audioVolume;
-            
-            console.log('▶️ Reproduzindo:', {
-                src: audio.src,
-                volume: audio.volume,
-                readyState: audio.readyState,
-                paused: audio.paused
-            });
-
-            // Reproduz
             await audio.play();
-            console.log('✅ Reprodução iniciada!');
             setAudioStatus('🔊 Tocando');
             
-            // Para após duração definida
             setTimeout(() => {
                 audio.pause();
                 audio.currentTime = 0;
                 setAudioStatus('✅ Áudio ativo');
-                console.log('⏹️ Reprodução finalizada');
             }, AUDIO_DURATION);
             
         } catch (error) {
             console.error('❌ Erro na reprodução:', error);
             setAudioStatus('❌ Erro');
-            
-            // Se falhou, tenta desbloquear novamente
-            if (!isUnlockedRef.current) {
-                toast.error('Clique na página para ativar o áudio');
-            }
         }
-    }, [audioVolume, isAudioReady, unlockAudio]);
+    }, [unlockAudio]);
 
     /**
      * Teste manual do som
      */
     const testSound = useCallback(() => {
-        console.log('🧪 TESTE MANUAL INICIADO');
         playSound();
     }, [playSound]);
 

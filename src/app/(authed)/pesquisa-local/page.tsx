@@ -1,22 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { radarsService } from '../../services'
 import { LocalSearchParams, RadarsDTO } from '../../types/types';
 import CustomPagination from '../../components/CustomPagination';
 import { Box, Button, Card, CardContent, Chip, CircularProgress, FormControl, InputLabel, Menu, MenuItem, Select, SelectChangeEvent, TextField, Typography } from '@mui/material';
 import { exportToExcel } from '../../components/ExportExcel';
 import { toast } from 'react-toastify';
-import { set } from 'react-hook-form';
-import { SearchIcon, TrendingUpIcon } from 'lucide-react';
+import { SearchIcon } from 'lucide-react';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ClearIcon from '@mui/icons-material/Clear';
 import { RodoviaDTO } from '@/app/services/radars';
-//import { ExportExcel } from '../components/ExportExcel';
 
 // =============================================
 // Tipos e Interfaces
@@ -113,6 +111,13 @@ const columns: GridColDef[] = [
         {params.value}
       </span>
     )
+  },
+  {
+    field: 'praca',
+    headerName: 'Praça',
+    width: 240,
+    headerAlign: 'center',
+    align: 'center',
   },
   { 
     field: 'km', 
@@ -255,7 +260,7 @@ export default function ConsultaLocal() {
         data: filtersToUse.data,
         horaInicial: filtersToUse.horaInicial || undefined,
         horaFinal: filtersToUse.horaFinal || undefined,
-        concessionaria: filtersToUse.concessionaria,
+        concessionarias: filtersToUse.concessionaria || undefined,
         rodovia: filtersToUse.rodovia || undefined, 
         km: filtersToUse.km || undefined,
         sentido: filtersToUse.sentido || undefined,
@@ -352,7 +357,7 @@ export default function ConsultaLocal() {
     try {
       // Mapeamento manual para LocalSearchParams
       const params: LocalSearchParams = {
-        concessionaria: filtersToExport.concessionaria,
+        concessionarias: filtersToExport.concessionaria,
         data: filtersToExport.data,
         horaInicial: filtersToExport.horaInicial,
         horaFinal: filtersToExport.horaFinal,

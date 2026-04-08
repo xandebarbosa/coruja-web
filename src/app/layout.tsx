@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from 'react-toastify';
 import AuthProvider from "./components/AuthProvider";
 import ToastProvider from "./components/ToastProvider";
+import GlobalAlertListener from "./components/GlobalAlertListener";
 
 const poppins = Poppins({
   weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
@@ -42,6 +43,7 @@ export default function RootLayout({
         suppressHydrationWarning={true}
       >
         <ToastProvider />
+        <GlobalAlertListener />
         
         <AuthProvider>
           <ThemeRegistry>

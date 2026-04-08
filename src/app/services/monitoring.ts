@@ -90,7 +90,7 @@ class MonitoringService {
    * Busca histórico de alertas com ordenação
    */
   async getAlertHistory(params: AlertHistoryParams): Promise<PaginatedAlertHistory> {
-    const { page = 0, size = 20, sort = 'dataHora,desc' } = params;
+    const { page = 0, size = 20, sort = 'data,desc' } = params;
     
     const { data } = await api.get<PaginatedAlertHistory>('/monitoramento/alertas', {
       params: { page, size, sort }      

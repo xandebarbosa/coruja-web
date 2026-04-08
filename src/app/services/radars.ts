@@ -118,7 +118,7 @@ class RadarsService {
    */
   async searchByLocal(params: LocalSearchParams): Promise<PageResponse<RadarsDTO>> {
     console.group('🔍 [Service] Busca por Local');
-    console.log('Parâmetros recebidos:', params);
+    console.log('Parâmetros recebidos da tela:', params);
 
     try {
       // Validação de campo obrigatório
@@ -132,6 +132,14 @@ class RadarsService {
         size: params.pageSize ?? 20,
         data: params.data, // YYYY-MM-DD (obrigatório)
       };
+
+      // Garantindo que a concessionária vá para o backend
+      // Verificamos tanto o plural (se você alterou na interface) quanto o singular
+      const concessionariaValue = params.concessionarias || params.concessionaria;
+      if (concessionariaValue) {
+        // Forçamos a chave no singular porque é o que o @RequestParam do Java espera
+        queryParams.concessionaria = concessionariaValue; 
+      }
 
       // Adiciona parâmetros opcionais apenas se tiverem valor
       if (params.horaInicial) queryParams.horaInicial = params.horaInicial;
