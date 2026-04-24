@@ -22,10 +22,10 @@ export async function exportToExcelAnalise(dados: any[], nomeArquivo: string, pl
         { key: 'PLACA', width: 12 },
         { key: 'MARCA/MODELO', width: 40 },
         { key: 'COR', width: 20 },
-        { key: 'MUNICÍPIO', width: 25 },        
-        { key: 'LOCAL', width: 15 },
+        { key: 'MUNICÍPIO', width: 30 },        
+        { key: 'LOCAL', width: 40 },
         { key: 'SENTIDO', width: 12 },
-        { key: 'SP', width: 10 },
+        { key: 'SP', width: 30 },
         { key: 'KM', width: 10 },
         { key: 'REP', width: 8 }
     ];

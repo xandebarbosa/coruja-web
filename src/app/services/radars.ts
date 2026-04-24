@@ -382,6 +382,63 @@ class RadarsService {
       return [];
     }
   }
+
+  async searchByLocalWithDetran(params: LocalSearchParams): Promise<PageResponse<RadarsDTO>> {
+    console.group('🔍 [Service] Busca por Local com Detran');
+
+    try {
+      if (!params.data) throw new Error('O campo "data" é obrigatório para busca por local.');
+
+      const queryParams: Record<string, any> = {
+        page: params.page ?? 0,
+        size: params.pageSize ?? 20,
+        data: params.data,
+      };
+
+      const concessionariaValue = params.concessionarias || params.concessionaria;
+      if (concessionariaValue) queryParams.concessionaria = concessionariaValue;
+      if (params.horaInicial) queryParams.horaInicial = params.horaInicial;
+      if (params.horaFinal) queryParams.horaFinal = params.horaFinal;
+      if (params.rodovia) queryParams.rodovia = params.rodovia;
+      if (params.km) queryParams.km = params.km;
+      if (params.sentido) queryParams.sentido = params.sentido;
+      if (params.praca) queryParams.praca = params.praca;
+
+      const { data } = await api.get<PageResponse<RadarsDTO>>('/radares/busca-local-detran', {
+        params: queryParams
+      });
+
+      console.log(`✅ Sucesso (Detran): ${data.page?.totalElements || 0} registros | ${data.content?.length || 0} na página`);
+      console.groupEnd();
+
+      return data;
+
+    } catch (error: any) {
+      console.error('❌ Erro na busca por local com Detran:', error);
+      console.groupEnd();
+
+      throw new Error(
+        error.response?.data?.message || 
+        'Erro ao buscar dados por local com Detran. Verifique os filtros e tente novamente.'
+      );
+    }
+  }
+
+  //Exportação com dados do Detran
+  async exportAllWithDetran(params: any): Promise<RadarsDTO[]> {
+    try {
+      const { data } = await api.get<RadarsDTO[]>('/radares/exportar-detran', {
+        params: {
+          ...params,
+          concessionaria: params.concessionarias || params.concessionaria
+        }
+      });
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('❌ Erro na exportação Detran:', error);
+      throw error;
+    }
+  }
 }
 
 export const radarsService = new RadarsService();

@@ -9,6 +9,9 @@ export interface RadarsDTO {
     praca?: string;
     concessionaria?: string;
     concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
+    marcaModelo?: string;
+    cor?: string;
+    municipio?: string;
 }
 
 export interface LocalSearchParams {
@@ -140,6 +143,7 @@ export interface UsuarioTelegram {
 
 export interface EncontroDTO {
   concessionaria: string;
+  concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
   data: string;  
   rodovia: string;
   praca: string;
@@ -157,4 +161,13 @@ export interface VeiculoSuspeitoDTO {
   marcaModelo?: string;
   cor?: string;
   municipio?: string;
+}
+
+export interface RadarLocationDTO {
+    latitude: number;
+    longitude: number;
+    concessionaria: string;
+    rodovia?: string;
+    km?: string;
+    sentido?: string;
 }

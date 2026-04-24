@@ -35,6 +35,13 @@ const TOTAL_COLS = 6;
 function Row({ row }: { row: VeiculoSuspeitoDTO }) {
     const [open, setOpen] = useState(false);
 
+    // 🚀 LOG ADICIONADO AQUI: Inspeciona os encontros sempre que a linha for renderizada ou expandida
+    React.useEffect(() => {
+        if (open) {
+            console.log(`🕵️ [FRONTEND] Dados dos encontros para a placa ${row.placa}:`, row.locaisDeEncontro);
+        }
+    }, [open, row]);
+
     return (
         <React.Fragment>
             {/* ── Linha Principal ── */}
@@ -230,8 +237,18 @@ function Row({ row }: { row: VeiculoSuspeitoDTO }) {
                                                     {formatarData(encontro.data)}
                                                 </TableCell>
 
-                                                <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '13px' }}>
-                                                    {encontro.concessionaria}
+                                                <TableCell 
+                                                    sx={{ 
+                                                        whiteSpace: 'nowrap', 
+                                                        fontSize: '12px', 
+                                                        fontWeight: 600, 
+                                                        color: '#4b5563',
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.5px'
+                                                    }}
+                                                >
+                                                    {/* Aplica o mesmo fallback seguro usado no DataGrid principal */}
+                                                    {encontro.concessionaria || (encontro as any).concessionarias}
                                                 </TableCell>
 
                                                 <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '13px', fontWeight: 500 }}>

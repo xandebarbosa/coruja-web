@@ -5,14 +5,15 @@ import { DataGrid, GridColDef, GridPaginationModel } from '@mui/x-data-grid';
 //import { searchByPlaca } from '../../services/radars';
 import { radarsService } from '../../services'
 import CustomPagination from '../../components/CustomPagination';
-import { Box, Button, Card, CardContent, Chip, InputAdornment, TextField, Tooltip, Typography } from '@mui/material';
-import { SearchIcon, TrendingUpIcon } from 'lucide-react';
+import { Box, Button, Card, CardContent, Chip, Grid, InputAdornment, TextField, Tooltip, Typography } from '@mui/material';
+import { InfoIcon, PaletteIcon, SearchIcon, TrendingUpIcon } from 'lucide-react';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { toast } from 'react-toastify';
 import { exportToExcel } from '@/app/components/ExportExcel';
 import { set } from 'react-hook-form';
 import { RadarsDTO } from '@/app/types/types';
+import { DirectionsCar, DirectionsCarOutlined, LocationCity, LocationCityOutlined, Palette, PaletteOutlined } from '@mui/icons-material';
 
 // Define as colunas do DataGrid
 const columns: GridColDef[] = [
@@ -107,6 +108,9 @@ export default function ConsultaPlaca() {
   //Estado para controlar o loading do botão copiar
   const [copying, setCopying] = useState(false);
 
+  //Estado para armazernar os dados do Detran
+  const [veiculoInfo, setVeiculoInfo] = useState<{marcaModelo?: string, cor?: string, municipio?: string} | null>(null);
+
   // Função de busca encapsulada
   const fetchRadars = useCallback(async (placa: string, page: number, pageSize: number) => {
     setLoading(true);
@@ -122,6 +126,19 @@ export default function ConsultaPlaca() {
             return currentDateTime > latestDateTime ? current : latest;
         });
         setLatestRowId(maisRecente.id); // Guarda o ID do mais recente
+
+        // Extrai as informações do Detran (pega do primeiro registro válido que tenha os dados)
+        const detranInfo = data.content.find((item: RadarsDTO) => item.marcaModelo || item.cor || item.municipio);
+        if (detranInfo) {
+          setVeiculoInfo({
+            marcaModelo: detranInfo.marcaModelo,
+            cor: detranInfo.cor,
+            municipio: detranInfo.municipio
+          });
+        } else {
+          setVeiculoInfo(null); // Nenhum registro com info do Detran encontrado
+        }
+
       } else {
         setLatestRowId(null); // Nenhum registro encontrado
       }
@@ -218,14 +235,46 @@ export default function ConsultaPlaca() {
       textToCopy += `📅 Gerado em: ${new Date().toLocaleString('pt-BR')}\n\n`;
       //textToCopy += `📊 Registros copiados: ${rows.length}\n\n`;
 
+      // Inclui informações do Detran no texto copiado, se disponíveis
+      if (veiculoInfo) {
+          textToCopy += `\n📋 *DADOS DO VEÍCULO*\n`;
+          if (veiculoInfo.marcaModelo) textToCopy += `🔹 Marca/Modelo: ${veiculoInfo.marcaModelo}\n`;
+          if (veiculoInfo.cor) textToCopy += `🎨 Cor: ${veiculoInfo.cor}\n`;
+          if (veiculoInfo.municipio) textToCopy += `📍 Município: ${veiculoInfo.municipio}\n`;
+      }
+
+      textToCopy += `-------------------------------------\n`;
+      textToCopy += `-------------------------------------\n`;
+      
+      textToCopy += `\n🔍 *ÚLTIMOS REGISTROS (Página Atual)*\n\n`;
+
+      // Mapeamento de sentidos para ícones direcionais
+      const getSentidoIcon = (sentido: string): string => {
+        const s = sentido?.toLowerCase().trim();
+      
+        if (s?.includes('leste'))  return '➡️'; // seta verde para direita
+        if (s?.includes('oeste'))  return '⬅️'; // seta azul para esquerda
+        if (s?.includes('norte'))  return '⬆️'; // seta cinza (sem cor nativa, usa emoji padrão)
+        if (s?.includes('sul'))    return '⬇️'; // seta laranja para baixo
+      
+        return '↔️'; // fallback genérico
+      };
+
       rows.forEach((row, index) => {
         const dataFormatada = new Date(`${row.data}T00:00:00`).toLocaleDateString('pt-BR');
         
         textToCopy += `*${index + 1}. ${dataFormatada} às ${row.hora}*\n`;
         textToCopy += `🚘 Placa: ${row.placa}\n`;
-        textToCopy += `🛣️ ${row.rodovia} - KM ${row.km}\n`;
-        textToCopy += `📍 ${row.praca}\n`;
-        textToCopy += `↔️ Sentido: ${row.sentido}\n`;
+        textToCopy += `🛣️ Local: ${row.rodovia || ''}\n`;
+        // 2. Adiciona o KM na linha de baixo apenas se ele existir e não for nulo
+        if (row.km !== null && row.km !== undefined && row.km !== '') {
+          textToCopy += `🚩 KM: ${row.km}\n`;
+        }
+
+        if (row.praca !== null && row.praca !== undefined && row.praca !== '') {
+          textToCopy += `📍 Praça: ${row.praca}\n`;
+        }
+        textToCopy += `${getSentidoIcon(row.sentido)} Sentido: ${row.sentido}\n`;
         textToCopy += `--------------------------------\n`;
       });
 
@@ -319,16 +368,10 @@ export default function ConsultaPlaca() {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': {
-                    borderColor: '#fca311',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#fca311',
-                  },
+                  '&:hover fieldset': { borderColor: '#fca311' },
+                  '&.Mui-focused fieldset': { borderColor: '#fca311' },
                 },
-                '& .MuiInputLabel-root.Mui-focused': {
-                  color: '#fca311',
-                },
+                '& .MuiInputLabel-root.Mui-focused': { color: '#fca311' },
               }}
             />          
             <Button
@@ -351,74 +394,108 @@ export default function ConsultaPlaca() {
                   boxShadow: '0 6px 20px rgba(252, 163, 17, 0.5)',
                   transform: 'translateY(-2px)',
                 },
-                '&:disabled': {
-                  bgcolor: '#e5e7eb',
-                  color: '#9ca3af',
-                },
+                '&:disabled': { bgcolor: '#e5e7eb', color: '#9ca3af' },
                 transition: 'all 0.3s ease',
               }}
             >
               {loading ? 'Buscando...' : 'Buscar'}
             </Button>          
           </div>
-
-          {/* Stats Row & Actions */}
-          {hasSearched && (
-            <div className="mt-4 gap-4 pt-4 border-t border-gray-200 justify-between flex flex-col md:flex-row md:items-center">
-              <div className='flex items-center '>
-                <div className='flex items-center gap-2'>
-                  <TrendingUpIcon style={{ color: '#fca311', fontSize: 20 }} />
-                  <Typography variant="body2" className="text-gray-600">
-                    Total de registros: <strong className="text-gray-900">{rowCount}</strong>
-                  </Typography>
-                </div>
-                {latestRowId && (
-                  <Chip 
-                    label="Registro mais recente destacado" 
-                    size="small"
-                    sx={{ 
-                      bgcolor: '#fef3e2',
-                      color: '#d97706',
-                      fontWeight: 500,
-                      fontSize: '12px',
-                      ml: 2
-                    }}
-                  />
-                )}
-              </div>
-              
-              {/* Botões de Ação */}
-              {rowCount > 0 && (
-                <div className="flex gap-2">
-                  <Tooltip title="Copiar registros da PÁGINA ATUALpara WhatsApp/Telegram">
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      onClick={handleCopy}
-                      disabled={loading || copying} // Desabilita se estiver copiando
-                      size="large"
-                      startIcon={<ContentCopyIcon />}
-                      sx={{ borderColor: '#1976d2', color: '#1976d2' }}
-                    >
-                      {copying ? 'Copiando...' : 'Copiar Tudo'}
-                    </Button>
-                  </Tooltip>
-
-                  <Button
-                    variant="contained"
-                    color="success"
-                    onClick={handleExport}
-                    disabled={exporting || loading}
-                    size="large"
-                  >
-                    {exporting ? 'Exportando...' : 'Exportar Relatório'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {/* Painel de Informações do Veículo (Detran) */}
+      {hasSearched && veiculoInfo && (
+        <Card className="mb-6 shadow-md border-l-4 border-[#1976d2]">
+            <CardContent className="p-5">
+                <Typography variant="h6" className="text-gray-800 font-bold mb-4 flex items-center gap-2">
+                    <InfoIcon color="primary" /> Informações do Veículo
+                </Typography>
+                <Grid container spacing={3}>
+                    <Grid size={{xs: 12, md: 4}}>
+                        <Box display="flex" alignItems="center" gap={2}>
+                            <div className="bg-blue-50 p-2 rounded-lg">
+                                <DirectionsCarOutlined sx={{ color: '#1976d2' }} />
+                            </div>
+                            <Box>
+                                <Typography variant="caption" color="textSecondary">Marca / Modelo</Typography>
+                                <Typography variant="body1" fontWeight="600">{veiculoInfo.marcaModelo || 'Não informado'}</Typography>
+                            </Box>
+                        </Box>
+                    </Grid>
+                    <Grid size={{xs: 12, md: 4}}>
+                        <Box display="flex" alignItems="center" gap={2}>
+                            <div className="bg-purple-50 p-2 rounded-lg">
+                                <PaletteOutlined sx={{ color: '#9c27b0' }} />
+                            </div>
+                            <Box>
+                                <Typography variant="caption" color="textSecondary">Cor</Typography>
+                                <Typography variant="body1" fontWeight="600">{veiculoInfo.cor || 'Não informada'}</Typography>
+                            </Box>
+                        </Box>
+                    </Grid>
+                    <Grid size={{xs: 12, md: 4}}>
+                        <Box display="flex" alignItems="center" gap={2}>
+                            <div className="bg-green-50 p-2 rounded-lg">
+                                <LocationCityOutlined sx={{ color: '#2e7d32' }} />
+                            </div>
+                            <Box>
+                                <Typography variant="caption" color="textSecondary">Município</Typography>
+                                <Typography variant="body1" fontWeight="600">{veiculoInfo.municipio || 'Não informado'}</Typography>
+                            </Box>
+                        </Box>
+                    </Grid>
+                </Grid>
+            </CardContent>
+        </Card>
+      )}
+
+      {/* Stats Row & Actions */}
+      {hasSearched && (
+        <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className='flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200'>
+                <TrendingUpIcon style={{ color: '#fca311', fontSize: 20 }} />
+                <Typography variant="body2" className="text-gray-600">
+                    Total de passagens registradas: <strong className="text-gray-900">{rowCount}</strong>
+                </Typography>
+                {latestRowId && (
+                    <Chip 
+                    label="Registro mais recente destacado" 
+                    size="small"
+                    sx={{ bgcolor: '#fef3e2', color: '#d97706', fontWeight: 500, fontSize: '12px', ml: 2 }}
+                    />
+                )}
+            </div>
+            
+            {rowCount > 0 && (
+            <div className="flex gap-2">
+                <Tooltip title="Copiar registros da PÁGINA ATUAL para WhatsApp/Telegram">
+                <Button
+                    variant="outlined"
+                    color="primary"
+                    onClick={handleCopy}
+                    disabled={loading || copying}
+                    size="medium"
+                    startIcon={<ContentCopyIcon />}
+                    sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#f3f4f6' } }}
+                >
+                    {copying ? 'Copiando...' : 'Copiar'}
+                </Button>
+                </Tooltip>
+
+                <Button
+                variant="contained"
+                color="success"
+                onClick={handleExport}
+                disabled={exporting || loading}
+                size="medium"
+                >
+                {exporting ? 'Exportando...' : 'Exportar Excel'}
+                </Button>
+            </div>
+            )}
+        </div>
+      )}
       
       {/* DataGrid Card */}
       <Card className="shadow-lg overflow-hidden">
@@ -436,28 +513,14 @@ export default function ConsultaPlaca() {
               hideFooter={!hasSearched}
               autoHeight={false}
               getRowClassName={(params) => {
-                return params.id === latestRowId 
-                    ? 'highlighted-row' 
-                    : '';
+                return params.id === latestRowId ? 'highlighted-row' : '';
               }}
               slots={{
                 pagination: CustomPagination,
                 noRowsOverlay: () => {
-                  // Só mostra a mensagem se já foi feita uma busca
-                  if (!hasSearched) {
-                    return null; // Tabela vazia inicialmente
-                  }
+                  if (!hasSearched) return null;
                   return (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: '100%',
-                        gap: 2,
-                      }}
-                    >
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2 }}>
                       <DirectionsCarIcon sx={{ fontSize: 60, color: '#d1d5db' }} />
                       <Typography variant="h6" sx={{ color: '#6b7280', fontWeight: 500 }}>
                         Nenhum registro de passagens localizado da placa {placaInput}
@@ -469,53 +532,24 @@ export default function ConsultaPlaca() {
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-columnHeaders': {
-                  bgcolor: '#14213d',
-                  color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  borderRadius: 0,
-                  minHeight: '56px !important',
-                  maxHeight: '56px !important',
+                  bgcolor: '#14213d', color: 'white', fontSize: '14px', fontWeight: 600, borderRadius: 0,
+                  minHeight: '56px !important', maxHeight: '56px !important',
                 },
-                '& .MuiDataGrid-columnHeader': {
-                  outline: 'none !important',
-                },
-                '& .MuiDataGrid-columnHeaderTitle': {
-                  fontWeight: 600,
-                  color: '#134074',
-                },
-                '& .MuiDataGrid-columnSeparator': {
-                  color: 'rgba(255,255,255,0.2)',
-                },
+                '& .MuiDataGrid-columnHeader': { outline: 'none !important' },
+                '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 600, color: '#134074' },
+                '& .MuiDataGrid-columnSeparator': { color: 'rgba(255,255,255,0.2)' },
                 '& .MuiDataGrid-row': {
-                  '&:hover': {
-                    bgcolor: '#fef3e2',
-                  },
-                  '&.Mui-selected': {
-                    bgcolor: '#fef9f0 !important',
-                  },
+                  '&:hover': { bgcolor: '#fef3e2' },
+                  '&.Mui-selected': { bgcolor: '#fef9f0 !important' },
                 },
                 '& .MuiDataGrid-row.highlighted-row': {
-                  bgcolor: '#fef3e2',
-                  borderLeft: '4px solid #fca311',
-                  '&:hover': {
-                    bgcolor: '#fde8c0 !important',
-                  },
+                  bgcolor: '#fef3e2', borderLeft: '4px solid #fca311',
+                  '&:hover': { bgcolor: '#fde8c0 !important' },
                 },
-                '& .MuiDataGrid-cell': {
-                  borderColor: '#f3f4f6',
-                  fontSize: '14px',
-                },
-                '& .MuiDataGrid-footerContainer': {
-                  borderTop: '2px solid #f3f4f6',
-                  bgcolor: '#fafafa',
-                },
-                '& .MuiTablePagination-root': {
-                  color: '#14213d',
-                },
-                '& .MuiDataGrid-virtualScroller': {
-                  bgcolor: 'white',
-                },
+                '& .MuiDataGrid-cell': { borderColor: '#f3f4f6', fontSize: '14px' },
+                '& .MuiDataGrid-footerContainer': { borderTop: '2px solid #f3f4f6', bgcolor: '#fafafa' },
+                '& .MuiTablePagination-root': { color: '#14213d' },
+                '& .MuiDataGrid-virtualScroller': { bgcolor: 'white' },
               }}
             />
           </Box>

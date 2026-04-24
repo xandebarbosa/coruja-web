@@ -1,6 +1,6 @@
 'use client';
 
-import { alpha, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, FormGroup, InputAdornment, Paper, Switch, TextareaAutosize, TextField, Typography } from '@mui/material'
+import { alpha, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, FormControlLabel, FormGroup, InputAdornment, Paper, Switch, TextareaAutosize, TextField, Tooltip, Typography } from '@mui/material'
 import { DataGrid, GridActionsCellItem, GridColDef, GridRenderCellParams, GridRowId, GridRowParams } from '@mui/x-data-grid'
 import  { ReactNode, useCallback, useEffect, useState } from 'react'
 import CustomPagination from '../../components/CustomPagination'
@@ -129,12 +129,17 @@ export default function RegisterPage() {
           if (!value || !Array.isArray(value) || value.length < 3) {
             return ''; // Retorna vazio se o dado não for um array válido
           }        
-          // Extrai as partes do array
-          const [year, month, day ] = value;        
-          // IMPORTANTE: O construtor de Date em JavaScript usa meses baseados em zero (0=Janeiro, 1=Fevereiro...)
-          // Por isso, subtraímos 1 do mês que vem do backend (que é 1-based).
-          // DD/MM/YYYY
-          return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+          // Extraímos os valores garantindo fallbacks seguros para horas caso não existam
+          const [year, month, day, hour = 0, minute = 0, second = 0] = value;        
+          
+          // Criamos a data tratando os valores do backend como UTC
+          // Lembrando que em JavaScript o mês começa em 0 (Janeiro = 0)
+          const dataUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+          
+          // Formata no padrão brasileiro forçando o timezone local
+          return dataUtc.toLocaleDateString('pt-BR', {
+            timeZone: 'America/Sao_Paulo'
+          });
         },
       },
       { 
@@ -148,9 +153,17 @@ export default function RegisterPage() {
         // Formata apenas a Hora
         valueFormatter: (value: number[]) => {
           if (!value || !Array.isArray(value) || value.length < 5) return '';
-          const [,,, hour, minute, second] = value;
-          // HH:mm:ss
-          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second || 0).padStart(2, '0')}`;
+          
+          const [year, month, day, hour, minute, second = 0] = value;
+          
+          const dataUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+          
+          return dataUtc.toLocaleTimeString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
         },
       },
       { 
@@ -186,7 +199,7 @@ export default function RegisterPage() {
         headerName: 'Marca/Modelo', 
         width: 200,
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ fontWeight: 500, color: '#14213d' }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, color: '#14213d', marginTop: '14px' }}>
             {params.value}
           </Typography>
         )
@@ -214,7 +227,8 @@ export default function RegisterPage() {
         flex: 1,
         minWidth: 300,
         renderCell: (params) => (
-          <Box
+          <Tooltip title={params.value || ''} placement="top" arrow>
+            <Box
             sx={{
               bgcolor: alpha('#fca311', 0.08),
               px: 2,
@@ -222,11 +236,13 @@ export default function RegisterPage() {
               borderRadius: 1,
               borderLeft: '3px solid #fca311',
               width: '100%',
-              my: 0.5
+              my: 0.5,
+              overflow: 'hidden',
             }}
           >
             <Typography 
               variant="body2" 
+              noWrap // Esta propriedade nativa do MUI adiciona os "..." (text-overflow: ellipsis)
               sx={{ 
                 fontWeight: 600, 
                 color: '#14213d',
@@ -236,6 +252,7 @@ export default function RegisterPage() {
               {params.value}
             </Typography>
           </Box>
+          </Tooltip>
         ),
       },      
       { 
@@ -297,7 +314,7 @@ export default function RegisterPage() {
         headerName: 'Interessado', 
         width: 180,
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ color: '#495057', fontWeight: 500 }}>
+          <Typography variant="body2" sx={{ color: '#495057', fontWeight: 500, marginTop: '14px' }}>
             {params.value}
           </Typography>
         )

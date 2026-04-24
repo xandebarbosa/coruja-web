@@ -16,6 +16,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ClearIcon from '@mui/icons-material/Clear';
 import { RodoviaDTO } from '@/app/services/radars';
 import { InfoOutlined } from '@mui/icons-material';
+import { exportToExcelDetram } from './componentes/ExportExcelDetran';
 
 // =============================================
 // Tipos e Interfaces
@@ -101,6 +102,42 @@ const columns: GridColDef[] = [
       />
     )
   },  
+  {
+    field: 'marcaModelo',
+    headerName: 'Marca/Modelo',
+    width: 200,
+    headerAlign: 'center',
+    align: 'center',
+    renderCell: (params) => (
+        <span style={{ fontWeight: 500, color: '#4b5563' }}>
+            {params.value || 'Carregando...'}
+        </span>
+    )
+  },
+  {
+    field: 'cor',
+    headerName: 'Cor',
+    width: 130,
+    headerAlign: 'center',
+    align: 'center',
+    renderCell: (params) => (
+        <span style={{ fontWeight: 500, color: '#4b5563' }}>
+            {params.value || 'Carregando...'}
+        </span>
+    )
+  },
+  {
+    field: 'municipio',
+    headerName: 'Município',
+    width: 180,
+    headerAlign: 'center',
+    align: 'center',
+    renderCell: (params) => (
+        <span style={{ fontWeight: 500, color: '#4b5563' }}>
+            {params.value || 'Carregando...'}
+        </span>
+    )
+  },
   { 
     field: 'rodovia', 
     headerName: 'Rodovia / Local', 
@@ -136,7 +173,7 @@ const columns: GridColDef[] = [
   },
 ];
 
-export default function ConsultaLocal() {
+export default function PesquisaLocalDetra() {
  // Estados
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
@@ -272,7 +309,7 @@ export default function ConsultaLocal() {
 
       console.log('📤 Parâmetros enviados para busca:', params);
 
-      const response = await radarsService.searchByLocal(params);
+      const response = await radarsService.searchByLocalWithDetran(params);
       
       console.log('📥 Resposta recebida:', response);
 
@@ -369,9 +406,9 @@ export default function ConsultaLocal() {
         pageSize: 1000 // Tamanho grande para exportação
       };
 
-      const data = await radarsService.searchAllByLocalForExport(params);
+      const data = await radarsService.exportAllWithDetran(params);
       if (data.length > 0) {
-        exportToExcel(data, `Relatorio_Radares_${filtersToExport.concessionaria}`);
+        exportToExcelDetram(data, `Relatorio_Radares_${filtersToExport.concessionaria}`);
         toast.success("Download iniciado!");
       } else {
         toast.info("Sem dados para exportar.");
@@ -413,10 +450,10 @@ export default function ConsultaLocal() {
                 className="font-bold text-white mb-1"
                 sx={{ letterSpacing: '-0.5px' }}
               >
-                Consulta por Local e Concessionária
+                Consulta por Local e Concessionária com Dados do Detran
               </Typography>
               <Typography variant="body2" className="text-gray-300">
-                Filtros avançados de localização e horário
+                Filtros de localização enriquecidos com Marca, Modelo e Cor (Base Nacional)
               </Typography>
             </div>
           </div>

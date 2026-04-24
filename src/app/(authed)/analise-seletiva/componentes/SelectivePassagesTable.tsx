@@ -45,11 +45,11 @@ export default function SelectivePassagesTable({
         {
             field: 'rodovia',
             headerName: 'Rodovia',
-            width: 140,
+            width: 250,
             headerAlign: 'center',
             align: 'center',
             renderCell: (params) => (
-                <Typography sx={{ fontWeight: 600, color: '#14213d', fontSize: '13px' }}>
+                <Typography sx={{ fontWeight: 600, color: '#14213d', fontSize: '13px', marginTop: '14px' }}>
                     {params.value}
                 </Typography>
             ),

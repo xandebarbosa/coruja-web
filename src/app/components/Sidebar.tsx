@@ -4,6 +4,8 @@ import {
   Home, ListAlt, Close, Search,
   AddCircleOutline, ImportantDevices,
   AssistantOutlined, Logout, NoCrashOutlined,
+  ScreenSearchDesktop,
+  Map,
 } from '@mui/icons-material';
 import ImageSearchIcon from '@mui/icons-material/ImageSearch';
 import PeopleIcon      from '@mui/icons-material/People';
@@ -20,11 +22,13 @@ const navItems = [
   { name: 'Dashboard',        icon: <Home />,              path: '/' },
   { name: 'Pesquisa Placa',   icon: <Search />,            path: '/pesquisa-placa' },
   { name: 'Pesquisa Local',   icon: <ImageSearchIcon />,   path: '/pesquisa-local' },
+  { name: 'Pesquisa Local + Detran', icon: <ScreenSearchDesktop />,   path: '/pesquisa-local-detran' },
   { name: 'Cadastro',         icon: <AddCircleOutline />,  path: '/register-page' },
   { name: 'Monitoramento',    icon: <ImportantDevices />,  path: '/monitoring-page' },
   { name: 'Geolocalização',   icon: <AssistantOutlined />, path: '/pesquisa-geo' },
   { name: 'Telegram Users',   icon: <PeopleIcon />,        path: '/telegram-users' },
-  { name: 'Análise Comboio',  icon: <NoCrashOutlined />,   path: '/analise-comboio' },
+  //{ name: 'Análise Comboio',  icon: <NoCrashOutlined />,   path: '/analise-comboio' },
+  { name: 'Mapa de Radares',     icon: <Map />,   path: '/mapa-radares' },
   { name: 'Análise Seletiva', icon: <InsightsIcon />,      path: '/analise-seletiva' },
 ];
 
@@ -100,13 +104,13 @@ export default function Sidebar() {
     <>
       {/* Logo */}
       <Box className="flex items-center gap-3 px-4 py-5 flex-shrink-0">
-        <Image src="/image/logo-rodoviario.png" alt="logo" width={48} height={48} className="drop-shadow-lg" />
+        <Image src="/image/logo-rodoviario.png" alt="logo" width={56} height={56} className="drop-shadow-lg" />
         <Box>
           <Typography variant="h5" className="font-black text-[#dad7cd] tracking-tight leading-tight">
-            CORUJA
+            CORUJA WEB
           </Typography>
           <Typography variant="caption" className="text-[#a09d93] uppercase tracking-wider">
-            Radar System
+            Sistema de Pesquisas e Monitoramento
           </Typography>
         </Box>
       </Box>
@@ -143,7 +147,7 @@ export default function Sidebar() {
                 sx={{ width: 40, height: 40, border: '2px solid #dad7cd', flexShrink: 0 }}
               />
               <Box className="min-w-0 flex-1">
-                <Typography variant="body2" className="font-semibold text-[#dad7cd] truncate text-sm">
+                <Typography variant="body2" className="font-semibold text-[#dad7cd] truncate text-sm uppercase">
                   {session.user.name}
                 </Typography>
                 <Typography variant="caption" className="text-[#a09d93] truncate block text-xs">
