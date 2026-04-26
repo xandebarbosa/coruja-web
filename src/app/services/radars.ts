@@ -46,6 +46,10 @@ interface SearchLocalParams {
 }
 
 class RadarsService {
+
+  // ─── Mecanismo de Cache para Localizações do Mapa ─────────────────────────
+  private radarLocationsCache: RadarLocationDTO[] | null = null;
+  private radarLocationsPromise: Promise<RadarLocationDTO[]> | null = null;
   
   /**
    * Busca os últimos radares processados (Dashboard)
@@ -325,16 +329,23 @@ class RadarsService {
     console.group('📊 [Service] Exportação Local');
     
     try {
-      // Remove paginação dos params ou força valores altos
-      const exportParams = {
+      // Criamos o objeto sem tipar como Record, usando 'any' 
+      // para permitir manipulação livre das chaves (como o delete)
+      const exportParams: any = {
         ...params,
         page: 0,
-        pageSize: 100000, // Tamanho grande para pegar todos
+        pageSize: 100000,
       };
+
+      // 🚀 Garante que o backend receba o parâmetro exato (concessionaria no singular)
+      const concessionariaValue = params.concessionarias || params.concessionaria;
+      if (concessionariaValue) {
+        exportParams.concessionaria = concessionariaValue;
+        delete exportParams.concessionarias; // Remove o plural para não confundir o Spring
+      }
 
       console.log('Parâmetros de exportação:', exportParams);
 
-      // Tenta usar endpoint dedicado de exportação, se existir
       try {
         const { data } = await api.get<RadarsDTO[]>('/radares/exportar', {
           params: exportParams
@@ -345,42 +356,56 @@ class RadarsService {
         
         return Array.isArray(data) ? data : [];
       } catch (exportError) {
-        // Fallback: usa endpoint de busca normal
-        console.warn('⚠️ Endpoint /exportar não disponível, usando /busca-local');
-        
-        const response = await this.searchByLocal(exportParams);
-        const records = response.content || [];
-        
-        console.log(`✅ Exportação via /busca-local: ${records.length} registros`);
-        console.groupEnd();
-        
-        return records;
+        console.warn('⚠️ Endpoint /exportar falhou, usando /busca-local');
+        // Usamos "as LocalSearchParams" para o TypeScript entender que as propriedades
+        // obrigatórias (page e pageSize) estão dentro deste objeto.
+        const response = await this.searchByLocal(exportParams as LocalSearchParams);
+        return response.content || [];
       }
     } catch (error: any) {
       console.error('❌ Erro na exportação:', error);
       console.groupEnd();
-      
-      throw new Error(
-        error.response?.data?.message || 
-        'Erro ao exportar dados.'
-      );
+      throw new Error(error.response?.data?.message || 'Erro ao exportar dados.');
     }
   }
 
   /**
-   * Busca pinos do mapa (Todas as localizações)
+   * Busca pinos do mapa com Deduplicação e Cache em Memória
+   * Impede que o frontend dispare múltiplas requisições idênticas simultânea
    * Endpoint: GET /radares/all-locations
    */
-  async getRadarLocations(): Promise<RadarLocationDTO[]> {
-    try {
-      console.log('📍 Buscando localizações de radares...');
-      const { data } = await api.get<RadarLocationDTO[]>('/radares/all-locations');
-      console.log(`✅ ${data.length} localizações carregadas`);
-      return data;
-    } catch (error) {
-      console.error('❌ Erro ao buscar localizações:', error);
-      return [];
+  async getRadarLocations(forceRefresh = false): Promise<RadarLocationDTO[]> {
+    // 1. Retorna do cache se já estiver carregado
+    if (!forceRefresh && this.radarLocationsCache) {
+      console.log('⚡ [Frontend Cache] Retornando localizações da memória.');
+      return this.radarLocationsCache;
     }
+
+    // 2. Se já existe uma requisição em andamento, agrupa a resposta (evita double-fetch)
+    if (!forceRefresh && this.radarLocationsPromise) {
+      console.log('⏳ [Frontend Cache] Requisição de mapa em andamento. Aguardando...');
+      return this.radarLocationsPromise;
+    }
+
+    // 3. Dispara a requisição real e armazena a Promise
+    this.radarLocationsPromise = (async () => {
+      try {
+        console.log('📍 Buscando localizações de radares na API...');
+        const { data } = await api.get<RadarLocationDTO[]>('/radares/all-locations');
+        
+        this.radarLocationsCache = data; // Salva o resultado
+        console.log(`✅ ${data.length} localizações carregadas.`);
+        return data;
+      } catch (error) {
+        console.error('❌ Erro ao buscar localizações:', error);
+        return []; // Retorna array vazio para o Leaflet não quebrar
+      } finally {
+        // Limpa a Promise após a conclusão (sucesso ou erro)
+        this.radarLocationsPromise = null; 
+      }
+    })();
+
+    return this.radarLocationsPromise;
   }
 
   async searchByLocalWithDetran(params: LocalSearchParams): Promise<PageResponse<RadarsDTO>> {

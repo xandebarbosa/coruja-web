@@ -97,14 +97,15 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
       open={open} 
       onClose={onClose} 
       fullWidth 
-      maxWidth="md"
+      maxWidth="lg"
       disableEscapeKeyDown={isSubmitting}
-      PaperProps={{
-        sx: {
+      sx={{
+        '& .MuiDialog-paper': {
           borderRadius: 3,
-          boxShadow: '0 12px 40px rgba(20, 33, 61, 0.15)',
+          boxShadow: '0 24px 60px rgba(20, 33, 61, 0.18)',
+          overflow: 'auto',
         }
-      }}
+      }}        
     >
       <form onSubmit={handleSubmit(onFormSubmit)}>
         {/* Header com gradiente */}
@@ -147,7 +148,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
             
             {/* Seção: Identificação do Veículo */}
             <Grid size={{ xs: 12 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, mt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
                 <DriveEta sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
                 <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
                   Identificação do Veículo
@@ -201,7 +202,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
                       backgroundColor: field.value ? alpha('#10b981', 0.1) : alpha('#ef4444', 0.1),
                       borderRadius: 2,
                       p: 2,
-                      width: '100%',
+                      width: '100%',                      
                       display: 'flex',
                       justifyContent: 'center'
                     }}
@@ -293,7 +294,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
 
             {/* Seção: Dados do Solicitante */}
             <Grid size={{ xs: 12 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, mt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
                 <PersonOutline sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
                 <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
                   Dados do Solicitante
@@ -344,7 +345,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
 
             {/* Seção: Informações Adicionais */}
             <Grid size={{ xs: 12 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, mt: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
                 <Description sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
                 <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
                   Informações Adicionais
@@ -365,7 +366,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
                     placeholder="Descreva o motivo..."
                     fullWidth
                     multiline
-                    rows={3}
+                    rows={2}
                     variant="outlined"
                     error={!!errors.motivo}
                     helperText={errors.motivo?.message}
@@ -400,7 +401,7 @@ export default function RegisterFormDialog({ open, onClose, onSubmit, initialDat
                     placeholder="Informações complementares..."
                     fullWidth
                     multiline
-                    rows={3}
+                    rows={2}
                     variant="outlined"
                     error={!!errors.observacao}
                     helperText={errors.observacao?.message}

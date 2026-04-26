@@ -105,7 +105,7 @@ const columns: GridColDef[] = [
   {
     field: 'marcaModelo',
     headerName: 'Marca/Modelo',
-    width: 200,
+    width: 250,
     headerAlign: 'center',
     align: 'center',
     renderCell: (params) => (
@@ -129,7 +129,7 @@ const columns: GridColDef[] = [
   {
     field: 'municipio',
     headerName: 'Município',
-    width: 180,
+    width: 250,
     headerAlign: 'center',
     align: 'center',
     renderCell: (params) => (
