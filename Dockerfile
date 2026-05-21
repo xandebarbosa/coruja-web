@@ -33,15 +33,17 @@ RUN adduser --system --uid 1001 nextjs
 
 # Copia os arquivos necessários do estágio de build
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+# Copia a pasta standalone gerada pelo build otimizado
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Define o usuário criado
 USER nextjs
 
 # Expõe a porta que a aplicação vai utilizar
 EXPOSE 3009
+ENV PORT 3009
+ENV HOSTNAME "0.0.0.0"
 
 # Comando para iniciar a aplicação
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]

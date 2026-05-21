@@ -2,15 +2,15 @@ version: '3.8'
 
 services:
   coruja-web:
+    container_name: coruja-web-app    
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: coruja-web-app
-    restart: unless-stopped
     ports:
       # Mapeia a porta 3009 do host para a porta 3009 do contêiner
       - "3009:3009"
     env_file:
-      - .env.production
+      - .env
+    restart: unless-stopped
     environment:
       - NODE_ENV=production

@@ -1,17 +1,21 @@
 export interface RadarsDTO {
-    id: number;
-    rodovia?: string;
-    km?: string;
-    sentido: string;
-    data?: Date;
-    hora: Date;
-    placa: string;
-    praca?: string;
-    concessionaria?: string;
-    concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
-    marcaModelo?: string;
-    cor?: string;
-    municipio?: string;
+  id: number;
+  rodovia?: string;
+  km?: string;
+  sentido: string;
+  data?: Date;
+  hora: Date;
+  placa: string;
+  praca?: string;
+  concessionaria?: string;
+  concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
+  marcaModelo?: string;
+  cor?: string;
+  municipio?: string;
+  uf?: string;
+  anoModelo?: string;
+  nomeProprietario?: string;
+  cpfProprietario?: string;
 }
 
 export interface LocalSearchParams {
@@ -65,12 +69,12 @@ export interface AlertHistoryRow {
   placa: string;
   data: number[];
   hora: number[];
-  concessionaria: string;  
+  concessionaria: string;
   rodovia: string;
   km: string;
   sentido: string;
   praca: string;
-  timestampAlerta: string; 
+  timestampAlerta: string;
   placaMonitorada: {
     // Incluímos os detalhes da placa monitorada que podem ser úteis
     id: number;
@@ -83,7 +87,7 @@ export interface AlertHistoryRow {
 }
 export interface RadarLocationDTO {
   id: number | string;
-  concessionaria: string;    
+  concessionaria: string;
   rodovia?: string;
   km?: string;
   praca?: string;
@@ -92,7 +96,10 @@ export interface RadarLocationDTO {
 }
 
 // Define o tipo para os dados do formulário (sem o ID, que é gerado no backend)
-export type MonitoredPlateFormData = Omit<MonitoredPlate, 'id' | 'createdAt' | 'updatedAt'>;
+export type MonitoredPlateFormData = Omit<
+  MonitoredPlate,
+  "id" | "createdAt" | "updatedAt"
+>;
 
 export interface PaginatedAlertHistory {
   content: AlertHistoryRow[];
@@ -144,7 +151,7 @@ export interface UsuarioTelegram {
 export interface EncontroDTO {
   concessionaria: string;
   concessionarias?: string; // Mantemos para compatibilidade, mas o singular é o recomendado
-  data: string;  
+  data: string;
   rodovia: string;
   praca: string;
   km: string;
@@ -157,17 +164,18 @@ export interface EncontroDTO {
 export interface VeiculoSuspeitoDTO {
   placa: string;
   quantidadeEncontros: number;
-  locaisDeEncontro: EncontroDTO[];
+  quantidadeLocaisDistintos?: number;
+  encontros: EncontroDTO[];
   marcaModelo?: string;
   cor?: string;
   municipio?: string;
 }
 
 export interface RadarLocationDTO {
-    latitude: number;
-    longitude: number;
-    concessionaria: string;
-    rodovia?: string;
-    km?: string;
-    sentido?: string;
+  latitude: number;
+  longitude: number;
+  concessionaria: string;
+  rodovia?: string;
+  km?: string;
+  sentido?: string;
 }

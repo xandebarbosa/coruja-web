@@ -55,7 +55,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     try {
-      const issuer      = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER ?? 'http://localhost:8180/realms/radares-realm';
+      const issuer      = process.env.NEXT_PUBLIC_KEYCLOAK_ISSUER ?? 'http://192.168.0.251:8180/realms/radares-realm';
       const redirectUrl = encodeURIComponent(window.location.origin);
       let   logoutUrl   = `${issuer}/protocol/openid-connect/logout?post_logout_redirect_uri=${redirectUrl}`;
       if (session?.idToken) logoutUrl += `&id_token_hint=${session.idToken}`;
