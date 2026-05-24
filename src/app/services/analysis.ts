@@ -10,6 +10,7 @@ export interface PassagemDTO {
 }
 
 interface PassagemFormatada {
+  uid?: string;
   placa: string;
   data: string; // YYYY-MM-DD
   hora: string; // HH:MM:SS

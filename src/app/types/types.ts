@@ -1,5 +1,5 @@
 export interface RadarsDTO {
-  id: number;
+  id: string;
   rodovia?: string;
   km?: string;
   sentido: string;

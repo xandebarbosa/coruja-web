@@ -1,8 +1,14 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
-// Removi o signOut da importação por enquanto
+// Importamos apenas o signOut do lado do cliente
 import { getSession, signOut } from "next-auth/react"; 
 
-const API_BASE_URL = "/api";
+const serverUrl = process.env.NEXT_PUBLIC_API_URL || "http://192.168.0.251:8081";
+// 1. Ajuste do Invalid URL: 
+// Se estiver no navegador, usa rota relativa "/api". 
+// Se estiver no servidor (Node.js/SSR), usa a URL absoluta do arquivo .env.local
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? "/api" 
+  : (serverUrl.endsWith('/api') ? serverUrl : `${serverUrl}/api`);// <-- Fallback de segurança
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -15,9 +21,31 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   async (config) => {
-    const session = await getSession();
-    if (session?.accessToken) {
-      config.headers.Authorization = `Bearer ${session.accessToken}`;
+    let accessToken;
+
+    // 2. Verificação de Ambiente (Garante a Auth no SSR e no CSR)
+    if (typeof window !== "undefined") {
+      // Estamos no Navegador (Client-Side)
+      const session = await getSession();
+      accessToken = session?.accessToken;
+    } else {
+      // Estamos no Servidor (Server-Side)
+      // Importamos getServerSession de forma dinâmica para não quebrar a build do Next.js
+      try {
+        const { getServerSession } = await import("next-auth");
+        // Ajuste este caminho se o authOptions não estiver exportado no route.ts
+        const { authOptions } = await import("@/app/lib/auth");
+
+        // Pega a sessão diretamente dos cookies no Node.js
+        const session: any = await getServerSession(authOptions);
+        accessToken = session?.accessToken;
+      } catch (err) {
+        console.warn("⚠️ Não foi possível obter a sessão no SSR.", err);
+      }
+    }
+
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     } else {
       console.warn("⚠️ Requisição feita sem accessToken na sessão local!");
     }
@@ -45,9 +73,7 @@ api.interceptors.response.use(
 
       switch (status) {
         case 401:
-          console.warn('🔒 Backend retornou 401 Unauthorized.');
-          console.warn('⚠️ O signOut automático foi desativado para debug. A tela não vai deslogar.');
-          //A linha abaixo é a causadora do Loop. Vamos mantê-la comentada por agora.
+          console.warn("🔒 Backend retornou 401 Unauthorized.");
           if (typeof window !== 'undefined' && window.location.pathname !== '/') {
             signOut({ callbackUrl: '/' });
           }
@@ -63,7 +89,9 @@ api.interceptors.response.use(
           break;
       }
     } else if (error.request) {
-      console.error("❌ [Network Error] Sem resposta do servidor. O Gateway pode estar offline ou bloqueando por CORS.");
+      console.error(
+        "❌ [Network Error] Sem resposta do servidor. O Gateway pode estar offline.",
+      );
     }
 
     return Promise.reject(error);

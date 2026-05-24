@@ -26,17 +26,20 @@ export const exportToExcelDetram = (data: any, fileName: string = "relatorio_rad
   }
 
   // Prepara os dados para a primeira planilha
-  const mainSheetData = safeData.map(item => ({
-    'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
-    'Hora': item.hora || '',
-    'Placa': item.placa || '',
-    'Marca/Modelo': item.marcaModelo || '',
-    'Cor': item.cor || '',
-    'Município': item.municipio || '',
-    'Praça/Local': item.praca || '',
-    'Rodovia': item.rodovia || '',
-    'KM': item.km || '',
-    'Sentido': item.sentido || '',
+  const mainSheetData = safeData.map((item) => ({
+    Data: item.data
+      ? new Date(`${item.data}T00:00:00`).toLocaleDateString("pt-BR")
+      : "",
+    Hora: item.hora || "",
+    Placa: item.placa || "",
+    "Marca/Modelo": item.marcaModelo || "",
+    Cor: item.cor || "",
+    Município: item.municipio || "",
+    "Praça/Local": item.praca || "",
+    UF: item.uf || "",
+    Rodovia: item.rodovia || "",
+    KM: item.km || "",
+    Sentido: item.sentido || "",
   }));
 
   const mainWorksheet = XLSX.utils.json_to_sheet(mainSheetData);
@@ -57,17 +60,20 @@ export const exportToExcelDetram = (data: any, fileName: string = "relatorio_rad
     const formula = `=COUNTIF(C:C, C${excelRowIndex})`;
 
     return {
-      'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
-      'Hora': item.hora,
-      'Placa': item.placa,
-      'Marca/Modelo': item.marcaModelo || '',
-      'Cor': item.cor || '',
-      'Município': item.municipio || '',
-      'Praça/Local': item.praca,
-      'Rodovia': item.rodovia,
-      'KM': item.km,
-      'Sentido': item.sentido,
-      'Repetidos': { f: formula },
+      Data: item.data
+        ? new Date(`${item.data}T00:00:00`).toLocaleDateString("pt-BR")
+        : "",
+      Hora: item.hora,
+      Placa: item.placa,
+      "Marca/Modelo": item.marcaModelo || "",
+      Cor: item.cor || "",
+      Município: item.municipio || "",
+      UF: item.uf || "",
+      "Praça/Local": item.praca,
+      Rodovia: item.rodovia,
+      KM: item.km,
+      Sentido: item.sentido,
+      Repetidos: { f: formula },
     };
   });
 

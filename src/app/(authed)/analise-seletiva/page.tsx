@@ -111,18 +111,23 @@ export default function AnaliseSeletivaPage() {
             return;
         }
 
-        const passagensSelecionadas = passagens.filter((p) =>
-            rowSelectionModel.includes(p.uid as string)
-        );
+        const passagensSelecionadas = passagens
+          .filter((p) => rowSelectionModel.includes(p.uid as string))
+          .map((p) => ({
+            radarId: p.id,
+            // Junta a data e a hora no padrão ISO esperado pelo Java (ex: 2026-03-23T14:30:00)
+            dataHora: `${p.data}T${p.hora}`,
+            placa: p.placa,
+          }));
 
         setLoadingAnalise(true);
         setResultadosIA(null);
 
         try {
             const dados = await analysisService.analyzeSelectedPassages(
-                placa,
-                tempoMinutos,
-                passagensSelecionadas
+              placa,
+              tempoMinutos,
+              passagensSelecionadas as any,
             );
             setResultadosIA(dados);
         } catch (error) {
@@ -146,22 +151,25 @@ const handleExportarExcel = async () => {
 
     try {
         // Mapeia os dados para ficarem IDÊNTICOS ao modelo fornecido
-        const dadosParaExportar = resultadosIA.flatMap((veiculo) => 
-            veiculo.locaisDeEncontro.map((encontro) => ({
-                'DATA': formatarData(encontro.data), // Formata a data se necessário
-                'HORA ALVO': encontro.horaAlvo || '',
-                'HORA SUSPEITO': encontro.horaSuspeito || '',
-                'PLACA': veiculo.placa || '',
-                'MARCA/MODELO': veiculo.marcaModelo || '—',  // ✅ Injetado do Detran
-                'COR': veiculo.cor || '—',                   // ✅ Injetado do Detran
-                'MUNICÍPIO': veiculo.municipio || '—',       // ✅ Injetado do Detran
-                'LOCAL': encontro.praca || encontro.concessionaria || '', // Ajuste conforme seu conceito de "Local"
-                'SENTIDO': encontro.sentido || '',
-                'SP': encontro.rodovia || '',
-                'KM': encontro.km || '',
-                'REP': veiculo.quantidadeEncontros || 0
-            }))
-        );
+        const dadosParaExportar = resultadosIA.flatMap((veiculo) => {
+          // Garante que se locaisDeEncontro for undefined/null, ele itere sobre um array vazio
+          const locais = veiculo.encontros || [];
+
+          return locais.map((encontro) => ({
+            DATA: formatarData(encontro.data),
+            "HORA ALVO": encontro.horaAlvo || "",
+            "HORA SUSPEITO": encontro.horaSuspeito || "",
+            PLACA: veiculo.placa || "",
+            "MARCA/MODELO": veiculo.marcaModelo || "—",
+            COR: veiculo.cor || "—",
+            MUNICÍPIO: veiculo.municipio || "—",
+            LOCAL: encontro.praca || encontro.concessionaria || "",
+            SENTIDO: encontro.sentido || "",
+            SP: encontro.rodovia || "",
+            KM: encontro.km || "",
+            REP: veiculo.quantidadeEncontros || 0,
+          }));
+        });
 
         // Opcional: Ordenar por placa para agrupar os encontros do mesmo veículo
         dadosParaExportar.sort((a, b) => a.PLACA.localeCompare(b.PLACA));

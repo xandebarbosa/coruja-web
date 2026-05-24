@@ -62,114 +62,124 @@ const INITIAL_OPTIONS: OptionsState = {
 // =============================================
 
 const columns: GridColDef[] = [
-  { 
-    field: 'data', 
-    headerName: 'Data', 
+  {
+    field: "data",
+    headerName: "Data",
     width: 130,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
     valueFormatter: (value: string) => {
-      if (!value) return '';
+      if (!value) return "";
       const date = new Date(`${value}T00:00:00`);
-      return date.toLocaleDateString('pt-BR');
-    }
+      return date.toLocaleDateString("pt-BR");
+    },
   },
-  { 
-    field: 'hora', 
-    headerName: 'Hora', 
+  {
+    field: "hora",
+    headerName: "Hora",
     width: 110,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
   },
-  { 
-    field: 'placa', 
-    headerName: 'Placa', 
+  {
+    field: "placa",
+    headerName: "Placa",
     width: 130,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
     renderCell: (params) => (
-      <Chip 
-        label={params.value} 
+      <Chip
+        label={params.value}
         size="medium"
         variant="outlined"
-        sx={{ 
+        sx={{
           fontWeight: 600,
-          bgcolor: '#3f51b5',
-          color: 'white',
-          fontFamily: 'Roboto',
-          letterSpacing: '0.5px'
+          bgcolor: "#3f51b5",
+          color: "white",
+          fontFamily: "Roboto",
+          letterSpacing: "0.5px",
         }}
       />
-    )
-  },  
+    ),
+  },
   {
-    field: 'marcaModelo',
-    headerName: 'Marca/Modelo',
+    field: "marcaModelo",
+    headerName: "Marca/Modelo",
     width: 250,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
     renderCell: (params) => (
-        <span style={{ fontWeight: 500, color: '#4b5563' }}>
-            {params.value || 'Carregando...'}
-        </span>
-    )
-  },
-  {
-    field: 'cor',
-    headerName: 'Cor',
-    width: 130,
-    headerAlign: 'center',
-    align: 'center',
-    renderCell: (params) => (
-        <span style={{ fontWeight: 500, color: '#4b5563' }}>
-            {params.value || 'Carregando...'}
-        </span>
-    )
-  },
-  {
-    field: 'municipio',
-    headerName: 'Município',
-    width: 250,
-    headerAlign: 'center',
-    align: 'center',
-    renderCell: (params) => (
-        <span style={{ fontWeight: 500, color: '#4b5563' }}>
-            {params.value || 'Carregando...'}
-        </span>
-    )
-  },
-  { 
-    field: 'rodovia', 
-    headerName: 'Rodovia / Local', 
-    width: 340,
-    headerAlign: 'center',
-    align: 'center',
-    renderCell: (params) => (
-      <span style={{ fontWeight: 600, color: '#14213d' }}>
-        {params.value}
+      <span style={{ fontWeight: 500, color: "#4b5563" }}>
+        {params.value || "Carregando..."}
       </span>
-    )
+    ),
   },
   {
-    field: 'praca',
-    headerName: 'Praça',
+    field: "cor",
+    headerName: "Cor",
+    width: 130,
+    headerAlign: "center",
+    align: "center",
+    renderCell: (params) => (
+      <span style={{ fontWeight: 500, color: "#4b5563" }}>
+        {params.value || "Carregando..."}
+      </span>
+    ),
+  },
+  {
+    field: "municipio",
+    headerName: "Município",
+    width: 250,
+    headerAlign: "center",
+    align: "center",
+    renderCell: (params) => (
+      <span style={{ fontWeight: 500, color: "#4b5563" }}>
+        {params.value || "Carregando..."}
+      </span>
+    ),
+  },
+  {
+    field: "uf",
+    headerName: "UF",
+    width: 20,
+    headerAlign: "center",
+    align: "center",
+    renderCell: (params) => (
+      <span style={{ fontWeight: 500, color: "#4b5563" }}>
+        {params.value || "Carregando..."}
+      </span>
+    ),
+  },
+  {
+    field: "rodovia",
+    headerName: "Rodovia / Local",
+    width: 340,
+    headerAlign: "center",
+    align: "center",
+    renderCell: (params) => (
+      <span style={{ fontWeight: 600, color: "#14213d" }}>{params.value}</span>
+    ),
+  },
+  {
+    field: "praca",
+    headerName: "Praça",
     width: 240,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
   },
-  { 
-    field: 'km', 
-    headerName: 'KM', 
+  {
+    field: "km",
+    headerName: "KM",
     width: 150,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
   },
-  { 
-    field: 'sentido', 
-    headerName: 'Sentido', 
+  {
+    field: "sentido",
+    headerName: "Sentido",
     width: 180,
-    headerAlign: 'center',
-    align: 'center',
+    headerAlign: "center",
+    align: "center",
   },
 ];
 

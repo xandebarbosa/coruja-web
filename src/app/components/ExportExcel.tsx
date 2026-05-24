@@ -26,14 +26,17 @@ export const exportToExcel = (data: any, fileName: string = "relatorio_radares.x
   }
 
   // Prepara os dados para a primeira planilha
-  const mainSheetData = safeData.map(item => ({
-    'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
-    'Hora': item.hora || '',
-    'Placa': item.placa || '',
-    'Praça/Local': item.praca || '',
-    'Rodovia': item.rodovia || '',
-    'KM': item.km || '',
-    'Sentido': item.sentido || '',
+  const mainSheetData = safeData.map((item) => ({
+    Data: item.data
+      ? new Date(`${item.data}T00:00:00`).toLocaleDateString("pt-BR")
+      : "",
+    Hora: item.hora || "",
+    Placa: item.placa || "",
+    Concessionaria: item.concessionaria || "",
+    "Praça/Local": item.praca || "",
+    Rodovia: item.rodovia || "",
+    KM: item.km || "",
+    Sentido: item.sentido || "",
   }));
 
   const mainWorksheet = XLSX.utils.json_to_sheet(mainSheetData);
@@ -54,14 +57,17 @@ export const exportToExcel = (data: any, fileName: string = "relatorio_radares.x
     const formula = `=COUNTIF(C:C, C${excelRowIndex})`;
 
     return {
-      'Data': item.data ? new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
-      'Hora': item.hora,
-      'Placa': item.placa,
-      'Praça/Local': item.praca,
-      'Rodovia': item.rodovia,
-      'KM': item.km,
-      'Sentido': item.sentido,
-      'Repetidos': { f: formula },
+      Data: item.data
+        ? new Date(`${item.data}T00:00:00`).toLocaleDateString("pt-BR")
+        : "",
+      Hora: item.hora,
+      Placa: item.placa,
+      Concessionaria: item.concessionaria,
+      "Praça/Local": item.praca,
+      Rodovia: item.rodovia,
+      KM: item.km,
+      Sentido: item.sentido,
+      Repetidos: { f: formula },
     };
   });
 
