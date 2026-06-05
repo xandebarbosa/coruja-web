@@ -141,13 +141,15 @@ export default function ConsultaPlacaClient({ initialData, searchParams }: PageP
 
     // 💡 Refatoração: Uso de useMemo ao invés de useEffect/useState para dados derivados
     const latestRowId = useMemo(() => {
-        if (!rows.length) return null;
-        const maisRecente = rows.reduce((latest, current) => {
-          const latestDateTime = new Date(`${latest.data}T${latest.hora}`);
-          const currentDateTime = new Date(`${current.data}T${current.hora}`);
-          return currentDateTime > latestDateTime ? current : latest;
-        });
-     return maisRecente.id;
+      if (!rows.length) return null;
+      const maisRecente = rows.reduce((latest, current) => {
+        const latestDateTime = new Date(`${latest.data}T${latest.hora}`);
+        const currentDateTime = new Date(`${current.data}T${current.hora}`);
+        return currentDateTime > latestDateTime ? current : latest;
+      });
+
+      // 🚨 CORREÇÃO: Agora ele retorna a mesma chave que o DataGrid espera
+      return `${maisRecente.placa}_${maisRecente.data}_${maisRecente.hora}_${maisRecente.concessionaria}_${maisRecente.id}`;
     }, [rows]);
 
     const veiculoInfo = useMemo(() => {
@@ -556,7 +558,9 @@ export default function ConsultaPlacaClient({ initialData, searchParams }: PageP
               rows={rows}
               columns={columns}
               rowCount={rowCount}
-              getRowId={(row) => `${row.placa}_${row.data}_${row.hora}_${row.concessionaria}`}
+              getRowId={(row) =>
+                `${row.placa}_${row.data}_${row.hora}_${row.concessionaria}_${row.id}`
+              }
               loading={loading}
               pageSizeOptions={[10, 25, 50]}
               paginationModel={paginationModel}
@@ -582,9 +586,7 @@ export default function ConsultaPlacaClient({ initialData, searchParams }: PageP
                         gap: 2,
                       }}
                     >
-                      <DirectionsCar
-                        sx={{ fontSize: 60, color: "#d1d5db" }}
-                      />
+                      <DirectionsCar sx={{ fontSize: 60, color: "#d1d5db" }} />
                       <Typography
                         variant="h6"
                         sx={{ color: "#6b7280", fontWeight: 500 }}
@@ -640,6 +642,5 @@ export default function ConsultaPlacaClient({ initialData, searchParams }: PageP
         </CardContent>
       </Card>
     </div>
-  
   );
 }

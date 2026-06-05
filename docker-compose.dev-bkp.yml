@@ -1,4 +1,5 @@
-coruja-web:
+services:
+  coruja-web:
     build:
       context: ../coruja-web # ou o caminho onde está seu frontend
     container_name: coruja-web
@@ -11,6 +12,11 @@ coruja-web:
       - ../coruja-web:/app 
       # Protege a pasta node_modules do contêiner para não conflitar com a da sua máquina
       - /app/node_modules 
+      - /app/.next
     command: npm run dev # 👈 Força o modo de desenvolvimento!
     networks:
       - radares-net
+networks:
+  radares-net:
+    external: true
+      

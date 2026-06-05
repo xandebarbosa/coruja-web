@@ -33,5 +33,19 @@ export const TelegramService = {
       console.error('[FRONT] Erro na sincronização:', error);
       throw error;
     }
+  },
+
+  /**
+   * Deleta usuário do Telegram
+   */
+  deleteOne: async (id: number): Promise<void> => {
+    try {
+      console.log(`🗑️ Deletando usuário Telegram de ${id}`);
+      await api.delete(`${BASE_URL}/${id}`);
+      console.log('✅ Usuário Telegram deletado');      
+    } catch (error: any) {
+      console.error('❌ Erro ao deletar placa:', error.message);
+      throw error;
+    }
   }
 };

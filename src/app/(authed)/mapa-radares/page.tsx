@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { RadarLocationDTO } from "../../types/types";
-import { radarsService } from "../../services/radars";
+import { radarsService, RodoviaDTO } from "../../services/radars";
 import {
   Card,
   CardContent,
@@ -11,11 +11,16 @@ import {
   Chip,
   Box,
   Tooltip,
+  Autocomplete,
+  TextField,
+  Button,
+  Divider,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { Search, X } from "lucide-react";
+import { toast } from "react-toastify";
 
-// ─── Importamos a config de cores/labels do mapa para reutilizar ─────────────
-// (Duplicamos as chaves necessárias aqui para não importar o módulo inteiro do Leaflet no Server)
+// ─── Config de cores/labels do mapa ──────────────────────────────────────────
 const CONCESSIONARIA_META: Record<
   string,
   { label: string; color: string; abbr: string }
@@ -28,16 +33,13 @@ const CONCESSIONARIA_META: Record<
 };
 
 const DEFAULT_META = { label: "Outro", color: "#6b7280", abbr: "OT" };
-
-// Sentinela: representa "nenhuma concessionária selecionada" sem ambiguidade
-// (Set vazio = mostrar tudo; Set com NONE_SENTINEL = mostrar nada)
 const NONE_SENTINEL = "__none__";
 
 function getMeta(key: string) {
   return CONCESSIONARIA_META[key.toLowerCase().trim()] ?? DEFAULT_META;
 }
 
-// ─── Importação dinâmica do mapa (evita erro SSR do Leaflet) ─────────────────
+// ─── Importação dinâmica do mapa ─────────────────────────────────────────────
 const RadarMapDinâmico = dynamic(
   () => import("./componentes/RadarMapComponent"),
   {
@@ -52,7 +54,7 @@ const RadarMapDinâmico = dynamic(
   },
 );
 
-// ─── Componente de botão de filtro por concessionária ────────────────────────
+// ─── Componente de Chip (Concessionária) ─────────────────────────────────────
 interface FilterChipProps {
   concKey: string;
   label: string;
@@ -94,7 +96,6 @@ function ConcessionariaFilterChip({
           minWidth: 0,
         }}
       >
-        {/* Lado esquerdo: ponto colorido + label */}
         <div
           style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
         >
@@ -120,8 +121,6 @@ function ConcessionariaFilterChip({
             {label}
           </span>
         </div>
-
-        {/* Lado direito: contagem + check */}
         <div
           style={{
             display: "flex",
@@ -139,23 +138,6 @@ function ConcessionariaFilterChip({
           >
             {count}
           </span>
-          {active && (
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M2.5 7L5.5 10L11.5 4"
-                stroke={color}
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
         </div>
       </button>
     </Tooltip>
@@ -170,97 +152,122 @@ export default function MapaRadaresPage() {
     null,
   );
 
-  // Set vazio = mostrar todas (comportamento padrão do RadarMapComponent)
-  // Set com chaves = mostrar apenas as selecionadas
+  // Estados de Filtro de Concessionária
   const [filtrosAtivos, setFiltrosAtivos] = useState<Set<string>>(new Set());
 
-  // ── Carrega pontos ──────────────────────────────────────────────────────────
+  // Estados de Filtro de Rodovia
+  const [rodoviasList, setRodoviasList] = useState<RodoviaDTO[]>([]);
+  const [rodoviaSelecionada, setRodoviaSelecionada] =
+    useState<RodoviaDTO | null>(null);
+  const [rodoviaAtiva, setRodoviaAtiva] = useState<string | null>(null); // O filtro real aplicado no mapa
+
+  // ── 1. Carrega pontos do Mapa e Lista de Rodovias ──────────────────────────
   useEffect(() => {
-    const fetchLocalizacoes = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
-        const data = await radarsService.getRadarLocations();
-        setRadares(data || []);
+        // Dispara as duas requisições em paralelo
+        const [locaisData, rodoviasData] = await Promise.all([
+          radarsService.getRadarLocations(),
+          radarsService.getRodovias(),
+        ]);
+
+        setRadares(locaisData || []);
+
+        // Remove rodovias duplicadas pelo nome para o Autocomplete ficar limpo
+        const unicas = Array.from(
+          new Map(
+            (rodoviasData || []).map((item) => [item.nome, item]),
+          ).values(),
+        );
+        setRodoviasList(unicas);
       } catch (error) {
         console.error("❌ Erro ao renderizar a página do mapa:", error);
+        toast.error("Erro ao carregar os dados do mapa.");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchLocalizacoes();
+    fetchData();
   }, []);
 
-  // ── Calcula contagem por concessionária ────────────────────────────────────
+  // ── 2. Aplica o filtro de Rodovia sobre os Radares ─────────────────────────
+  const radaresParaMapa = useMemo(() => {
+    if (!rodoviaAtiva) return radares;
+    // Pega apenas os radares que têm a mesma rodovia filtrada
+    return radares.filter(
+      (r) =>
+        (r.rodovia || r.praca || "").toUpperCase() ===
+        rodoviaAtiva.toUpperCase(),
+    );
+  }, [radares, rodoviaAtiva]);
+
+  // ── 3. Handlers do Botão Procurar/Limpar Rodovia ───────────────────────────
+  const handleProcurarRodovia = () => {
+    if (rodoviaSelecionada) {
+      setRodoviaAtiva(rodoviaSelecionada.nome);
+      // Opcional: Se quiser limpar os filtros de concessionária ao buscar uma rodovia
+      // setFiltrosAtivos(new Set());
+    } else {
+      setRodoviaAtiva(null);
+    }
+  };
+
+  const handleLimparRodovia = () => {
+    setRodoviaSelecionada(null);
+    setRodoviaAtiva(null);
+  };
+
+  // ── 4. Lógicas de Concessionária (Baseadas na lista já filtrada por Rodovia)
   const contagemPorConc = useMemo(() => {
     const map: Record<string, number> = {};
-    radares.forEach((r) => {
+    radaresParaMapa.forEach((r) => {
       const key = (r.concessionaria ?? "").toLowerCase().trim();
       if (!key) return;
       map[key] = (map[key] ?? 0) + 1;
     });
     return map;
-  }, [radares]);
+  }, [radaresParaMapa]);
 
-  // Chaves únicas de concessionárias encontradas nos dados
   const concessionariasDisponiveis = useMemo(
     () => Object.keys(contagemPorConc).sort(),
     [contagemPorConc],
   );
 
-  // ── Total de radares visíveis ──────────────────────────────────────────────
   const totalVisiveis = useMemo(() => {
-    if (filtrosAtivos.size === 0) return radares.length;
-    return radares.filter((r) =>
+    if (filtrosAtivos.size === 0) return radaresParaMapa.length;
+    return radaresParaMapa.filter((r) =>
       filtrosAtivos.has((r.concessionaria ?? "").toLowerCase().trim()),
     ).length;
-  }, [radares, filtrosAtivos]);
+  }, [radaresParaMapa, filtrosAtivos]);
 
-  // ── Handlers de filtro ────────────────────────────────────────────────────
+  // Handlers Concessionária
   const handleToggle = (key: string) => {
     setFiltrosAtivos((prev) => {
       const next = new Set(prev);
-
-      // Se o set estava vazio (= "todas ativas"), inicializamos com todas
-      // EXCETO a que foi clicada (toggle intuitivo)
       if (next.size === 0) {
         concessionariasDisponiveis.forEach((k) => {
           if (k !== key) next.add(k);
         });
         return next;
       }
-
       if (next.has(key)) {
         next.delete(key);
-        // Se ficou vazio, volta para "todas visíveis"
         if (next.size === 0) return new Set();
       } else {
         next.add(key);
-        // Se todas estão selecionadas manualmente, volta para o estado "todas" (set vazio)
         if (next.size === concessionariasDisponiveis.length) return new Set();
       }
-
       return next;
     });
   };
 
   const handleSelecionarTodas = () => setFiltrosAtivos(new Set());
-
-  const handleDeselecionarTodas = () => {
-    // Deixa apenas a primeira, para nunca ficar com mapa vazio
-    //const first = concessionariasDisponiveis[0];
-    //setFiltrosAtivos(first ? new Set([first]) : new Set());
+  const handleDeselecionarTodas = () =>
     setFiltrosAtivos(new Set([NONE_SENTINEL]));
-  };
-
-  // Verifica se uma concessionária está "ativa" considerando o estado do set
   const isActive = (key: string) =>
     filtrosAtivos.size === 0 || filtrosAtivos.has(key);
-
   const todasSelecionadas = filtrosAtivos.size === 0;
-  const quantidadeVisiveis =
-    filtrosAtivos.size === 0
-      ? concessionariasDisponiveis.length
-      : filtrosAtivos.size;
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col gap-4 bg-gradient-to-br from-gray-50 via-[#fef9f3] to-gray-50 p-6">
@@ -285,7 +292,6 @@ export default function MapaRadaresPage() {
       >
         <CardContent className="px-8 py-5">
           <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-            {/* Título */}
             <div className="flex items-center gap-5">
               <Box
                 sx={{
@@ -318,35 +324,19 @@ export default function MapaRadaresPage() {
                   sx={{ color: "rgba(255,255,255,0.7)", mt: 0.5 }}
                 >
                   {isLoading
-                    ? "Sincronizando localizações com as concessionárias..."
-                    : `${totalVisiveis} de ${radares.length} equipamentos exibidos`}
+                    ? "Sincronizando localizações..."
+                    : rodoviaAtiva
+                      ? `${totalVisiveis} radares na ${rodoviaAtiva}`
+                      : `${totalVisiveis} de ${radares.length} equipamentos exibidos`}
                 </Typography>
               </div>
             </div>
-
-            {/* Badge de resumo */}
-            {!isLoading && (
-              <Chip
-                label={
-                  todasSelecionadas
-                    ? "Todas as concessionárias"
-                    : `${quantidadeVisiveis} concessionária${quantidadeVisiveis !== 1 ? "s" : ""} visível${quantidadeVisiveis !== 1 ? "is" : ""}`
-                }
-                sx={{
-                  bgcolor: alpha("#fca311", 0.15),
-                  color: "#fca311",
-                  border: "1px solid rgba(252,163,17,0.35)",
-                  fontWeight: 600,
-                  fontSize: 13,
-                }}
-              />
-            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* ── PAINEL DE FILTROS ─────────────────────────────────────────────── */}
-      {!isLoading && concessionariasDisponiveis.length > 0 && (
+      {/* ── PAINEL DE FILTROS (RODOVIA + CONCESSIONÁRIAS) ───────────────── */}
+      {!isLoading && (
         <Card
           className="shrink-0 overflow-hidden"
           sx={{
@@ -355,26 +345,95 @@ export default function MapaRadaresPage() {
             boxShadow: "0 4px 24px rgba(20,33,61,0.2)",
           }}
         >
-          <CardContent sx={{ py: 1.5, px: 3, "&:last-child": { pb: 1.5 } }}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Label + ações rápidas */}
-              <div className="flex shrink-0 items-center gap-3">
-                <div className="flex items-center gap-2">
-                  {/* Ícone de filtro SVG inline */}
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 15 15"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M1 3h13M3.5 7.5h8M6 12h3"
-                      stroke="#fca311"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+          <CardContent
+            sx={{
+              py: 2,
+              px: 3,
+              "&:last-child": { pb: 2 },
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {/* LINHA 1: Busca de Rodovia */}
+            <div className="flex w-full items-center gap-3">
+              <Autocomplete
+                options={rodoviasList}
+                getOptionLabel={(option) => option.nome || ""}
+                value={rodoviaSelecionada}
+                onChange={(_, newValue) => setRodoviaSelecionada(newValue)}
+                isOptionEqualToValue={(option, value) =>
+                  option.nome === value.nome
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder="Buscar Rodovia (Ex: SP-294)"
+                    variant="outlined"
+                    size="small"
+                    sx={{
+                      backgroundColor: "rgba(255,255,255,0.05)",
+                      borderRadius: 2,
+                      input: { color: "white" },
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "rgba(255,255,255,0.2)",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#fca311",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#fca311",
+                      },
+                      "& .MuiSvgIcon-root": { color: "rgba(255,255,255,0.7)" },
+                    }}
+                  />
+                )}
+                sx={{ flexGrow: 1, maxWidth: 400 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleProcurarRodovia}
+                startIcon={<Search size={16} />}
+                sx={{
+                  bgcolor: "#fca311",
+                  color: "#14213d",
+                  fontWeight: "bold",
+                  "&:hover": { bgcolor: "#ff8800" },
+                  textTransform: "none",
+                  borderRadius: 2,
+                }}
+              >
+                Localizar
+              </Button>
+              {rodoviaAtiva && (
+                <Button
+                  variant="outlined"
+                  onClick={handleLimparRodovia}
+                  startIcon={<X size={16} />}
+                  sx={{
+                    color: "#fca311",
+                    borderColor: "rgba(252,163,17,0.5)",
+                    textTransform: "none",
+                    borderRadius: 2,
+                    "&:hover": {
+                      borderColor: "#fca311",
+                      bgcolor: "rgba(252,163,17,0.1)",
+                    },
+                  }}
+                >
+                  Limpar
+                </Button>
+              )}
+            </div>
+
+            {concessionariasDisponiveis.length > 0 && (
+              <Divider sx={{ borderColor: "rgba(255,255,255,0.1)" }} />
+            )}
+
+            {/* LINHA 2: Chips de Concessionária */}
+            {concessionariasDisponiveis.length > 0 && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex shrink-0 items-center gap-3">
                   <Typography
                     variant="body2"
                     sx={{
@@ -385,114 +444,80 @@ export default function MapaRadaresPage() {
                   >
                     Concessionárias
                   </Typography>
-                </div>
-
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={handleSelecionarTodas}
-                    disabled={todasSelecionadas}
-                    style={{
-                      fontSize: 11,
-                      color: todasSelecionadas
-                        ? "rgba(255,255,255,0.25)"
-                        : "rgba(255,255,255,0.6)",
-                      cursor: todasSelecionadas ? "default" : "pointer",
-                      padding: "2px 10px",
-                      border: "0.5px solid",
-                      borderColor: todasSelecionadas
-                        ? "rgba(255,255,255,0.1)"
-                        : "rgba(255,255,255,0.25)",
-                      borderRadius: 20,
-                      background: "none",
-                      transition: "all 0.2s",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Todas
-                  </button>
-                  <button
-                    onClick={handleDeselecionarTodas}
-                    disabled={filtrosAtivos.size === 1}
-                    style={{
-                      fontSize: 11,
-                      color:
-                        filtrosAtivos.size === 1
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleSelecionarTodas}
+                      disabled={todasSelecionadas}
+                      style={{
+                        fontSize: 11,
+                        color: todasSelecionadas
                           ? "rgba(255,255,255,0.25)"
                           : "rgba(255,255,255,0.6)",
-                      cursor: filtrosAtivos.size === 1 ? "default" : "pointer",
-                      padding: "2px 10px",
-                      border: "0.5px solid",
-                      borderColor:
-                        filtrosAtivos.size === 1
+                        cursor: todasSelecionadas ? "default" : "pointer",
+                        padding: "2px 10px",
+                        border: "0.5px solid",
+                        borderColor: todasSelecionadas
                           ? "rgba(255,255,255,0.1)"
                           : "rgba(255,255,255,0.25)",
-                      borderRadius: 20,
-                      background: "none",
-                      transition: "all 0.2s",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Nenhuma
-                  </button>
+                        borderRadius: 20,
+                        background: "none",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      onClick={handleDeselecionarTodas}
+                      disabled={filtrosAtivos.size === 1}
+                      style={{
+                        fontSize: 11,
+                        color:
+                          filtrosAtivos.size === 1
+                            ? "rgba(255,255,255,0.25)"
+                            : "rgba(255,255,255,0.6)",
+                        cursor:
+                          filtrosAtivos.size === 1 ? "default" : "pointer",
+                        padding: "2px 10px",
+                        border: "0.5px solid",
+                        borderColor:
+                          filtrosAtivos.size === 1
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(255,255,255,0.25)",
+                        borderRadius: 20,
+                        background: "none",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      Nenhuma
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `repeat(${Math.min(concessionariasDisponiveis.length, 5)}, minmax(100px, 1fr))`,
+                    gap: 8,
+                    flex: 1,
+                  }}
+                >
+                  {concessionariasDisponiveis.map((key) => {
+                    const meta = getMeta(key);
+                    return (
+                      <ConcessionariaFilterChip
+                        key={key}
+                        concKey={key}
+                        label={meta.label}
+                        color={meta.color}
+                        count={contagemPorConc[key] ?? 0}
+                        active={isActive(key)}
+                        onToggle={handleToggle}
+                      />
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Grid de chips de concessionárias */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${Math.min(concessionariasDisponiveis.length, 5)}, minmax(100px, 1fr))`,
-                  gap: 8,
-                  flex: 1,
-                }}
-              >
-                {concessionariasDisponiveis.map((key) => {
-                  const meta = getMeta(key);
-                  return (
-                    <ConcessionariaFilterChip
-                      key={key}
-                      concKey={key}
-                      label={meta.label}
-                      color={meta.color}
-                      count={contagemPorConc[key] ?? 0}
-                      active={isActive(key)}
-                      onToggle={handleToggle}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Status: radares visíveis */}
-              <div
-                style={{
-                  //shrink: 0,
-                  textAlign: "right",
-                  borderLeft: "0.5px solid rgba(255,255,255,0.1)",
-                  paddingLeft: 16,
-                  minWidth: 90,
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.4)",
-                    display: "block",
-                  }}
-                >
-                  Visíveis
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: "#fca311",
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {totalVisiveis}
-                </Typography>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -500,7 +525,8 @@ export default function MapaRadaresPage() {
       {/* ── MAPA ─────────────────────────────────────────────────────────── */}
       <div className="relative z-0 min-h-[400px] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <RadarMapDinâmico
-          points={radares}
+          // 💡 Passamos os radares já filtrados pela Rodovia (se existir)
+          points={radaresParaMapa}
           activeFilters={filtrosAtivos}
           selectedPoint={selectedPoint}
           onSelectPoint={setSelectedPoint}

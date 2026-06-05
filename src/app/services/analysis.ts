@@ -1,16 +1,26 @@
 import { VeiculoSuspeitoDTO } from "../types/types";
 import api from "./client";
-import { AxiosError } from "axios"; // Assumindo o uso de Axios baseado no 'api.get' e 'api.post'
+import { AxiosError } from "axios";
 
-// 💡 Sugestão: Crie e importe a interface correta no seu arquivo types.ts
+// 💡 Flexibilizamos a interface de entrada para aceitar o que vem do DataGrid
 export interface PassagemDTO {
-  id: string; // Adapte para as propriedades reais da passagem do seu banco
-  dataHora: string;
-  radarId: string;
+  id?: string;
+  radarId?: string;
+  dataHora?: string;
+  data?: string;
+  hora?: string;
+  placa?: string;
+  rodovia?: string;
+  praca?: string;
+  km?: string | number;
+  sentido?: string;
+  concessionaria?: string;
+  [key: string]: any; // Permite campos extras que a grid possa injetar
 }
 
+// 💡 O contrato estrito que o Backend (Quarkus/BFF) espera receber (RadarDTO)
 interface PassagemFormatada {
-  uid?: string;
+  id: string;
   placa: string;
   data: string; // YYYY-MM-DD
   hora: string; // HH:MM:SS
@@ -18,12 +28,9 @@ interface PassagemFormatada {
   praca: string;
   km: string;
   sentido: string;
-  concessionaria?: string;
+  concessionaria: string;
 }
 
-/**
- * Interface da requisição para o backend
- */
 interface AnaliseComboioRequest {
   placaAlvo: string;
   tempoMinutos: number;
@@ -44,6 +51,7 @@ interface PassagemExcel {
 
 class AnalysisService {
   private readonly API_TIMEOUT = 30000;
+
   /**
    * Analisa veículos que andaram em comboio com uma placa alvo
    */
@@ -82,31 +90,52 @@ class AnalysisService {
   async analyzeSelectedPassages(
     placaAlvo: string,
     tempoMinutos: number,
-    passagens: PassagemDTO[], // 🔹 Refatorado: Remoção do 'any[]' para maior segurança
+    passagens: PassagemDTO[],
   ): Promise<VeiculoSuspeitoDTO[]> {
     try {
-      const payload = { placaAlvo, tempoMinutos, passagens };
+      // 💡 TRANSFORMAÇÃO BLINDADA: Lê chaves em MAIÚSCULO (do DataGrid) e minúsculo (do Banco)
+      const passagensFormatadas: PassagemFormatada[] = passagens.map((p) => {
+        let dataFinal = p.data || p.DATA || "";
+        let horaFinal = p.hora || p.HORA || "";
 
-      console.log("========================================");
+        if (p.dataHora) {
+          const partes = p.dataHora.split(/[T ]/);
+          dataFinal = partes[0];
+          horaFinal = partes[1] || "";
+        }
+
+        return {
+          id: p.radarId || p.id || "",
+          placa: p.placa || p.PLACA || placaAlvo,
+          data: dataFinal,
+          hora: horaFinal,
+
+          // 🚨 A MÁGICA: Mapeia as colunas do Excel/Grid (maiúsculas) para o contrato Java
+          // Se o Grid usa 'LOCAL', nós mapeamos para a 'praca' que a API do Java espera.
+          rodovia: p.rodovia || p.RODOVIA || p.sp || p.SP || "N/I",
+          praca: p.praca || p.PRACA || p.local || p.LOCAL || "N/I",
+          km: String(p.km || p.KM || "N/I"),
+          sentido: p.sentido || p.SENTIDO || "N/I",
+          concessionaria: p.concessionaria || p.CONCESSIONARIA || "N/I",
+        };
+      });
+
+      const payload = {
+        placaAlvo,
+        tempoMinutos,
+        passagens: passagensFormatadas,
+      };
+
       console.log(
-        "📤 [FRONTEND -> API] Iniciando Análise Avançada (Passagens)",
-      );
-      console.log("📍 Rota: POST /analise/comboio/passagens");
-      console.log(
-        "📦 Payload enviado (Body):",
+        "📦 Payload Perfeito enviado para o Java:",
         JSON.stringify(payload, null, 2),
       );
-      console.log("========================================");
 
       const { data } = await api.post<VeiculoSuspeitoDTO[]>(
         "/analise/comboio/passagens",
         payload,
       );
 
-      console.log(
-        "✅ [API -> FRONTEND] Sucesso na análise avançada. Resultados:",
-        data.length,
-      );
       return data;
     } catch (error) {
       this.handleError("Erro ao analisar passagens", error);
@@ -114,12 +143,8 @@ class AnalysisService {
     }
   }
 
-  /**
-   * 🔹 Refatorado: Método utilitário para padronizar o log de erros
-   */
   private handleError(contextMessage: string, error: unknown): void {
     if (error instanceof Error) {
-      // Se for um erro do Axios, você pode extrair a mensagem de resposta da API
       const axiosError = error as AxiosError<{ message?: string }>;
       const serverMessage = axiosError.response?.data?.message;
 

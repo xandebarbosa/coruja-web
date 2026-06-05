@@ -5,7 +5,7 @@ import ConsultaPlacaClient from "./ConsultaPlacaClient";
 export default async function ConsultaPlacaPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   // 1. Aguarda a resolução dos parâmetros
   const resolvedParams = await searchParams;

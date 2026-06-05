@@ -113,11 +113,12 @@ export default function AnaliseSeletivaPage() {
 
         const passagensSelecionadas = passagens
           .filter((p) => rowSelectionModel.includes(p.uid as string))
-          .map((p) => ({
-            radarId: p.id,
+          .map((row) => ({
+            ...row, // 💡 A MÁGICA AQUI: Mantém as colunas LOCAL, SP, KM, SENTIDO e CONCESSIONARIA intactas!
+            radarId: row.id,
             // Junta a data e a hora no padrão ISO esperado pelo Java (ex: 2026-03-23T14:30:00)
-            dataHora: `${p.data}T${p.hora}`,
-            placa: p.placa,
+            dataHora: `${row.data}T${row.hora}`,
+            placa: row.placa,
           }));
 
         setLoadingAnalise(true);

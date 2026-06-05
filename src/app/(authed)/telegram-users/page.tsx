@@ -1,11 +1,9 @@
 'use client';
 
+import { deleteUserTelegram } from "@/app/services";
 import { TelegramService } from '@/app/services/telegram';
 import { UsuarioTelegram } from '@/app/types/types';
-import {
-  CloudDownload,
-  Sync,
-} from '@mui/icons-material';
+import { CloudDownload, Delete, Sync } from "@mui/icons-material";
 import {
   alpha,
   Avatar,
@@ -19,7 +17,12 @@ import {
   LinearProgress,
   Typography,
 } from '@mui/material';
-import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import {
+  DataGrid,
+  GridActionsCellItem,
+  GridColDef,
+  GridRowId,
+} from "@mui/x-data-grid";
 import {
   Eye,
   EyeOff,
@@ -131,44 +134,89 @@ export default function TelegramUsersPage() {
     return { total, ativos, novos };
   }, [users]);
 
+  const handleDeleteClick = (id: GridRowId) => async () => {
+    if (window.confirm("Tem certeza que deseja remover este usuário?//")) {
+      try {
+        await deleteUserTelegram(Number(id));
+        toast.success("Usuário removido do Telegram.");
+        fetchUsers();
+      } catch (error) {
+        toast.error("Erro ao remover a usuário.");
+        console.error("Erro ao deletar usuário:", error);
+      }
+    }
+  };
+
   /* ─────────────────── Colunas DataGrid ─────────────────── */
   const columns: GridColDef[] = [
     {
-      field: 'avatar',
-      headerName: '',
+      field: "avatar",
+      headerName: "",
       width: 64,
       sortable: false,
-      renderCell: params => (
-        <Avatar sx={{ bgcolor: '#fca311', width: 36, height: 36, fontWeight: 700, fontSize: 15 }}>
-          {params.row.primeiroNome?.charAt(0)?.toUpperCase() ?? '?'}
+      renderCell: (params) => (
+        <Avatar
+          sx={{
+            bgcolor: "#fca311",
+            width: 36,
+            height: 36,
+            fontWeight: 700,
+            fontSize: 15,
+          }}
+        >
+          {params.row.primeiroNome?.charAt(0)?.toUpperCase() ?? "?"}
         </Avatar>
       ),
     },
     {
-      field: 'telegramId',
-      headerName: 'Telegram ID',
+      field: "telegramId",
+      headerName: "Telegram ID",
       width: 210,
-      headerAlign: 'center',
-      align: 'center',
-      renderCell: params => {
+      headerAlign: "center",
+      align: "center",
+      renderCell: (params) => {
         const key = params.row.id ?? params.row.telegramId;
         const visible = visibleIds.has(key);
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', px: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              px: 1,
+            }}
+          >
             <Typography
               variant="caption"
-              sx={{ fontFamily: 'monospace', color: visible ? '#374151' : '#9ca3af', letterSpacing: visible ? 0 : 2 }}
+              sx={{
+                fontFamily: "monospace",
+                color: visible ? "#374151" : "#9ca3af",
+                letterSpacing: visible ? 0 : 2,
+              }}
             >
-              {visible ? params.value : '•••••••••'}
+              {visible ? params.value : "•••••••••"}
             </Typography>
             <Box
               component="button"
-              onClick={e => { e.stopPropagation(); toggleId(key); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleId(key);
+              }}
               sx={{
-                background: 'none', border: 'none', cursor: 'pointer', p: 0.5, borderRadius: 1,
-                color: '#9ca3af', display: 'flex', alignItems: 'center',
-                '&:hover': { color: '#fca311', bgcolor: alpha('#fca311', 0.08) },
-                transition: 'all 0.2s',
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                p: 0.5,
+                borderRadius: 1,
+                color: "#9ca3af",
+                display: "flex",
+                alignItems: "center",
+                "&:hover": {
+                  color: "#fca311",
+                  bgcolor: alpha("#fca311", 0.08),
+                },
+                transition: "all 0.2s",
               }}
             >
               {visible ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -178,68 +226,115 @@ export default function TelegramUsersPage() {
       },
     },
     {
-      field: 'nomeCompleto',
-      headerName: 'Nome',
+      field: "nomeCompleto",
+      headerName: "Nome",
       flex: 1,
-      minWidth: 200,
-      valueGetter: (_v, row) => `${row.primeiroNome ?? ''} ${row.sobrenome ?? ''}`.trim(),
-      renderCell: params => (
-        <Typography variant="body2" sx={{ fontWeight: 600, color: '#14213d' }}>
-          {params.value || '—'}
+      minWidth: 120,
+      valueGetter: (_v, row) =>
+        `${row.primeiroNome ?? ""} ${row.sobrenome ?? ""}`.trim(),
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ fontWeight: 600, color: "#14213d" }}>
+          {params.value || "—"}
         </Typography>
       ),
     },
     {
-      field: 'username',
-      headerName: 'Username',
-      width: 200,
-      renderCell: params =>
+      field: "username",
+      headerName: "Username",
+      width: 150,
+      renderCell: (params) =>
         params.value ? (
           <Chip
             label={`@${params.value}`}
             size="small"
-            sx={{ bgcolor: alpha('#fca311', 0.1), color: '#14213d', fontWeight: 600, border: `1px solid ${alpha('#fca311', 0.4)}` }}
+            sx={{
+              bgcolor: alpha("#fca311", 0.1),
+              color: "#14213d",
+              fontWeight: 600,
+              border: `1px solid ${alpha("#fca311", 0.4)}`,
+            }}
           />
         ) : (
-          <Typography variant="caption" sx={{ color: '#9ca3af' }}>—</Typography>
+          <Typography variant="caption" sx={{ color: "#9ca3af" }}>
+            —
+          </Typography>
         ),
     },
     {
-      field: 'statusAtividade',
-      headerName: 'Atividade',
+      field: "statusAtividade",
+      headerName: "Atividade",
       width: 130,
-      headerAlign: 'center',
-      align: 'center',
+      headerAlign: "center",
+      align: "center",
       valueGetter: (_v, row) => getActivityStatus(row.ultimoAcesso),
-      renderCell: params => {
-        const map: Record<string, { label: string; bg: string; color: string }> = {
-          active:  { label: 'Ativo',    bg: alpha('#059669', 0.1), color: '#059669' },
-          inactive:{ label: 'Inativo',  bg: alpha('#d97706', 0.1), color: '#d97706' },
-          dormant: { label: 'Dormindo', bg: alpha('#6b7280', 0.1), color: '#6b7280' },
+      renderCell: (params) => {
+        const map: Record<
+          string,
+          { label: string; bg: string; color: string }
+        > = {
+          active: {
+            label: "Ativo",
+            bg: alpha("#059669", 0.1),
+            color: "#059669",
+          },
+          inactive: {
+            label: "Inativo",
+            bg: alpha("#d97706", 0.1),
+            color: "#d97706",
+          },
+          dormant: {
+            label: "Dormindo",
+            bg: alpha("#6b7280", 0.1),
+            color: "#6b7280",
+          },
         };
         const { label, bg, color } = map[params.value] ?? map.dormant;
         return (
-          <Chip size="small" label={label}
-            sx={{ bgcolor: bg, color, fontWeight: 600, fontSize: 12, border: `1px solid ${alpha(color, 0.3)}` }}
+          <Chip
+            size="small"
+            label={label}
+            sx={{
+              bgcolor: bg,
+              color,
+              fontWeight: 600,
+              fontSize: 12,
+              border: `1px solid ${alpha(color, 0.3)}`,
+            }}
           />
         );
       },
     },
     {
-      field: 'dataCadastro',
-      headerName: 'Cadastrado em',
+      field: "dataCadastro",
+      headerName: "Cadastrado em",
       width: 150,
-      headerAlign: 'center',
-      align: 'center',
+      headerAlign: "center",
+      align: "center",
       valueFormatter: (v: any) => safeDateFormatter(v),
     },
     {
-      field: 'ultimoAcesso',
-      headerName: 'Último Acesso',
+      field: "ultimoAcesso",
+      headerName: "Último Acesso",
       width: 150,
-      headerAlign: 'center',
-      align: 'center',
+      headerAlign: "center",
+      align: "center",
       valueFormatter: (v: any) => safeDateFormatter(v),
+    },
+    {
+      field: "actions",
+      type: "actions",
+      headerName: "Ações",
+      width: 80,
+      headerAlign: "center",
+      getActions: (params: { id: GridRowId; row: "" }) => [
+        <GridActionsCellItem
+          key={`delete-${params.id}`}
+          icon={<Delete sx={{ color: "#dc3545" }} />}
+          label="Deletar"
+          onClick={handleDeleteClick(params.id)}
+          showInMenu={false}
+        />,
+      ],
     },
   ];
 

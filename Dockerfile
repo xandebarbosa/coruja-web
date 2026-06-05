@@ -1,10 +1,9 @@
 # Estágio 1: Instalação de dependências
 FROM node:20-alpine AS deps
-# Adiciona biblioteca necessária para alguns pacotes nativos
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copia apenas os arquivos de dependência para aproveitar o cache do Docker
+# Copia os arquivos de dependência
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -14,10 +13,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Desabilita a telemetria do Next.js (boa prática em CI/CD e Docker)
+# Desabilita a telemetria do Next.js
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Executa o build da aplicação
+# Executa o build da aplicação (o arquivo .env será lido aqui para as variáveis NEXT_PUBLIC_)
 RUN npm run build
 
 # Estágio 3: Imagem de Produção (Runner)
@@ -31,9 +30,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copia os arquivos necessários do estágio de build
+# Copia os arquivos estáticos e a pasta standalone gerada pelo build
 COPY --from=builder /app/public ./public
-# Copia a pasta standalone gerada pelo build otimizado
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
@@ -45,5 +43,5 @@ EXPOSE 3009
 ENV PORT 3009
 ENV HOSTNAME "0.0.0.0"
 
-# Comando para iniciar a aplicação
+# Comando para iniciar a aplicação standalone
 CMD ["node", "server.js"]

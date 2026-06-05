@@ -227,13 +227,13 @@ class RadarsService {
    */
   async getRodovias(concessionaria?: string): Promise<RodoviaDTO[]> {
     try {
-      console.log('📍 Buscando rodovias...');
-      const url = concessionaria 
-        ? `/radares/rodovias?concessionaria=${concessionaria}` 
-        : '/radares/rodovias';
+      console.log("📍 Buscando rodovias...");
+      const url = concessionaria
+        ? `/radares/rodovias?concessionaria=${concessionaria}`
+        : "/radares/rodovias";
       const response = await api.get<RodoviaDTO[]>(url);
-      console.log("REsponse getRodovias ===> ",response);
-      
+      //console.log("REsponse getRodovias ===> ",response);
+
       return response.data;
     } catch (error) {
       console.error("❌ Erro ao buscar rodovias:", error);

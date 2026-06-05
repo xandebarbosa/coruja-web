@@ -34,7 +34,7 @@ export function useRadarSearch() {
               return currentTime > latestTime ? current : latest;
             },
           );
-          setLatestRowId(maisRecente.id);
+          setLatestRowId(Number(maisRecente.id));
 
           const detranInfo = data.content.find(
             (item: RadarsDTO) => item.marcaModelo || item.cor || item.municipio,

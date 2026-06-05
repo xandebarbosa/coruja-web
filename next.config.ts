@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
       // ✅ NOVA REGRA: Proxy para o WebSocket
       {
         source: "/ws/:path*",
-        destination: "http://192.168.0.251:8082/ws/:path*", // Backend URL
+        destination: `${process.env.NEXT_PUBLIC_WS_URL}/ws/:path*`, // Backend URL
       },
     ];
   },
