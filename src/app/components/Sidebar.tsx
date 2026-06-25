@@ -71,26 +71,28 @@ export default function Sidebar() {
     return (
       <Link
         href={item.path}
+        prefetch={true}
         onClick={() => setOpen(false)}
-        className={`
-          group relative flex items-center gap-3 px-4 py-3 rounded-xl
-          transition-all duration-200
-          ${isActive
-            ? 'bg-gradient-to-r from-[#dad7cd] to-[#e8e4dc] text-[#003049] shadow-lg'
-            : 'text-[#dad7cd] hover:bg-[#004a6e] hover:text-white'}
-        `}
+        className={`group relative flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+          isActive
+            ? "bg-gradient-to-r from-[#dad7cd] to-[#e8e4dc] text-[#003049] shadow-lg"
+            : "text-[#dad7cd] hover:bg-[#004a6e] hover:text-white"
+        } `}
       >
         <Box
-          sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}
-          className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}
+          sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}
+          className={`transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-110"}`}
         >
           {item.icon}
         </Box>
-        <Typography variant="body2" className={`truncate font-medium ${isActive ? 'font-semibold' : ''}`}>
+        <Typography
+          variant="body2"
+          className={`truncate font-medium ${isActive ? "font-semibold" : ""}`}
+        >
           {item.name}
         </Typography>
         {isActive && (
-          <Box className="absolute right-0 w-1 h-8 bg-[#003049] rounded-l-full" />
+          <Box className="absolute right-0 h-8 w-1 rounded-l-full bg-[#003049]" />
         )}
       </Link>
     );

@@ -50,85 +50,111 @@ export default function PreviewDialog({ open, onClose, data }: PreviewDialogProp
     return null; // Não renderiza nada se não houver dados
   }
 
+  // Funçao auxiliar para formatar o array de data vindo do banco
+  const formatarDataCriacao = (value: any) => {
+    if (!value || !Array.isArray(value) || value.length < 3) {
+      return "Data não disponível";
+    }
+
+    const [year, month, day, hour = 0, minute = 0, second = 0] = value;
+
+    //Cria o objeto Date tratando como UTC
+    const dataUtc = new Date(
+      Date.UTC(year, month - 1, day, hour, minute, second),
+    );
+
+    //Retorna a data e hora formatadas no padrão brasileiro
+    return dataUtc.toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose} 
-      fullWidth 
-      maxWidth="md"
-      PaperProps={{
-        sx: { 
-          borderRadius: 3,
-          boxShadow: '0 12px 40px rgba(20, 33, 61, 0.15)',
-        }
-      }}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="lg"
+      sx={{ borderRadius: 3, boxShadow: "0 12px 40px rgba(20, 33, 61, 0.15)" }}
     >
       {/* Header animado */}
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #14213d 0%, #1a2b4d 100%)',
-          color: 'white',
-          px: 4,
-          py: 4,
-          position: 'relative',
-          overflow: 'hidden',
-          '&::before': {
+          background: "linear-gradient(135deg, #14213d 0%, #1a2b4d 100%)",
+          color: "white",
+          px: 3,
+          py: 3,
+          position: "relative",
+          overflow: "hidden",
+          "&::before": {
             content: '""',
-            position: 'absolute',
+            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            background: 'radial-gradient(circle at 20% 50%, rgba(252, 163, 17, 0.1) 0%, transparent 50%)',
-            animation: 'pulse 3s ease-in-out infinite'
+            background:
+              "radial-gradient(circle at 20% 50%, rgba(252, 163, 17, 0.1) 0%, transparent 50%)",
+            animation: "pulse 3s ease-in-out infinite",
           },
-          '@keyframes pulse': {
-            '0%, 100%': { opacity: 0.5 },
-            '50%': { opacity: 1 }
-          }
+          "@keyframes pulse": {
+            "0%, 100%": { opacity: 0.5 },
+            "50%": { opacity: 1 },
+          },
         }}
       >
         <IconButton
           onClick={onClose}
           sx={{
-            position: 'absolute',
+            position: "absolute",
             right: 16,
             top: 16,
-            color: 'white',
+            color: "white",
             zIndex: 1,
-            '&:hover': {
-              backgroundColor: alpha('#fca311', 0.2),
-              transform: 'rotate(90deg)',
-              transition: 'all 0.3s ease'
-            }
+            "&:hover": {
+              backgroundColor: alpha("#fca311", 0.2),
+              transform: "rotate(90deg)",
+              transition: "all 0.3s ease",
+            },
           }}
         >
           <Close />
         </IconButton>
 
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Box display="flex" alignItems="center" gap={2}>
             <Box
               sx={{
-                backgroundColor: alpha('#fca311', 0.2),
-                borderRadius: '50%',
-                p: 1.5,
-                display: 'flex',
-                animation: 'ring 2s ease-in-out infinite'
+                backgroundColor: alpha("#fca311", 0.2),
+                borderRadius: "50%",
+                p: 2,
+                display: "flex",
+                animation: "ring 2s ease-in-out infinite",
               }}
             >
-              <NotificationsActive sx={{ fontSize: 32, color: '#fca311' }} />
+              <NotificationsActive sx={{ fontSize: 32, color: "#fca311" }} />
             </Box>
             <Box>
               <Typography variant="body2" sx={{ opacity: 0.8, mb: 0.5 }}>
                 Alerta de Passagem Monitorada
               </Typography>
-              <Typography 
-                variant="h4" 
-                fontWeight="800" 
-                sx={{ 
-                  letterSpacing: '2px',
-                  fontFamily: 'monospace'
+              <Typography
+                variant="h4"
+                fontWeight="800"
+                sx={{
+                  letterSpacing: "2px",
+                  fontFamily: "monospace",
                 }}
               >
                 {data.placa}
@@ -136,77 +162,97 @@ export default function PreviewDialog({ open, onClose, data }: PreviewDialogProp
             </Box>
           </Box>
 
-          <Chip 
+          <Chip
             icon={data.statusAtivo ? <CheckCircle /> : <Cancel />}
-            label={data.statusAtivo ? "Ativo" : "Inativo"} 
+            label={data.statusAtivo ? "Ativo" : "Inativo"}
             sx={{
-              backgroundColor: data.statusAtivo ? '#10b981' : '#ef4444',
-              color: 'white',
+              backgroundColor: data.statusAtivo ? "#10b981" : "#ef4444",
+              color: "white",
               fontWeight: 700,
               px: 2,
               py: 2.5,
-              fontSize: '0.9rem',
-              '& .MuiChip-icon': {
-                color: 'white'
-              }
+              mr: 10,
+              fontSize: "0.9rem",
+              "& .MuiChip-icon": {
+                color: "white",
+              },
             }}
           />
         </Box>
       </Box>
 
-      <DialogContent sx={{ px: 4, py: 4, backgroundColor: '#fafbfc' }}>
+      <DialogContent sx={{ px: 3, py: 3, backgroundColor: "#fafbfc" }}>
         <Grid container spacing={3}>
-          
           {/* Seção: Dados do Veículo */}
           <Grid size={{ xs: 12 }}>
-            <Box display="flex" alignItems="center" mb={2}>
-              <DriveEta sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
-              <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
+            <Box display="flex" alignItems="center" mb={1}>
+              <DriveEta sx={{ color: "#fca311", mr: 1.5, fontSize: 28 }} />
+              <Typography
+                variant="h6"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 Dados do Veículo
               </Typography>
             </Box>
-            <Divider sx={{ mb: 3, borderColor: alpha('#fca311', 0.2) }} />
+            <Divider sx={{ mb: 1, borderColor: alpha("#fca311", 0.2) }} />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'white',
-                borderLeft: '4px solid #fca311',
-                borderRadius: 2
+              sx={{
+                p: 2.5,
+                backgroundColor: "white",
+                borderLeft: "4px solid #fca311",
+                borderRadius: 2,
               }}
             >
               <Box display="flex" alignItems="center" mb={1}>
-                <DriveEta sx={{ color: '#fca311', mr: 1, fontSize: 20 }} />
-                <Typography variant="caption" color="text.secondary" fontWeight="600">
+                <DriveEta sx={{ color: "#fca311", mr: 1, fontSize: 20 }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight="600"
+                >
                   MARCA/MODELO
                 </Typography>
               </Box>
-              <Typography variant="body1" fontWeight="600" sx={{ color: '#14213d' }}>
+              <Typography
+                variant="body1"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 {data.marcaModelo || "—"}
               </Typography>
             </Paper>
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'white',
-                borderLeft: '4px solid #fca311',
-                borderRadius: 2
+              sx={{
+                p: 2.5,
+                backgroundColor: "white",
+                borderLeft: "4px solid #fca311",
+                borderRadius: 2,
               }}
             >
               <Box display="flex" alignItems="center" mb={1}>
-                <Palette sx={{ color: '#fca311', mr: 1, fontSize: 20 }} />
-                <Typography variant="caption" color="text.secondary" fontWeight="600">
+                <Palette sx={{ color: "#fca311", mr: 1, fontSize: 20 }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight="600"
+                >
                   COR
                 </Typography>
               </Box>
-              <Typography variant="body1" fontWeight="600" sx={{ color: '#14213d' }}>
+              <Typography
+                variant="body1"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 {data.cor || "—"}
               </Typography>
             </Paper>
@@ -214,107 +260,108 @@ export default function PreviewDialog({ open, onClose, data }: PreviewDialogProp
 
           {/* Seção: Dados do Solicitante */}
           <Grid size={{ xs: 12 }}>
-            <Box display="flex" alignItems="center" mb={2} mt={2}>
-              <Person sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
-              <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
+            <Box display="flex" alignItems="center" mb={1} mt={1}>
+              <Person sx={{ color: "#fca311", mr: 1.5, fontSize: 28 }} />
+              <Typography
+                variant="h6"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 Dados do Solicitante
               </Typography>
             </Box>
-            <Divider sx={{ mb: 3, borderColor: alpha('#fca311', 0.2) }} />
+            <Divider sx={{ mb: 1, borderColor: alpha("#fca311", 0.2) }} />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'white',
-                borderLeft: '4px solid #14213d',
-                borderRadius: 2
+              sx={{
+                p: 2.5,
+                backgroundColor: "white",
+                borderLeft: "4px solid #14213d",
+                borderRadius: 2,
               }}
             >
               <Box display="flex" alignItems="center" mb={1}>
-                <Person sx={{ color: '#14213d', mr: 1, fontSize: 20 }} />
-                <Typography variant="caption" color="text.secondary" fontWeight="600">
+                <Person sx={{ color: "#14213d", mr: 1, fontSize: 20 }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight="600"
+                >
                   INTERESSADO
                 </Typography>
               </Box>
-              <Typography variant="body1" fontWeight="600" sx={{ color: '#14213d' }}>
+              <Typography
+                variant="body1"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 {data.interessado || "—"}
               </Typography>
             </Paper>
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'white',
-                borderLeft: '4px solid #14213d',
-                borderRadius: 2
+              sx={{
+                p: 2.5,
+                backgroundColor: "white",
+                borderLeft: "4px solid #14213d",
+                borderRadius: 2,
               }}
             >
               <Box display="flex" alignItems="center" mb={1}>
-                <Phone sx={{ color: '#14213d', mr: 1, fontSize: 20 }} />
-                <Typography variant="caption" color="text.secondary" fontWeight="600">
-                  TELEFONE/WHATSAPP
-                </Typography>
-              </Box>
-              <Typography variant="body1" fontWeight="600" sx={{ color: '#14213d' }}>
-                {data.telefone || "—"}
-              </Typography>
-            </Paper>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper 
-              elevation={0}
-              sx={{ 
-                p: 2.5, 
-                backgroundColor: 'white',
-                borderLeft: '4px solid #14213d',
-                borderRadius: 2
-              }}
-            >
-              <Box display="flex" alignItems="center" mb={1}>
-                <CalendarMonth sx={{ color: '#14213d', mr: 1, fontSize: 20 }} />
-                <Typography variant="caption" color="text.secondary" fontWeight="600">
+                <CalendarMonth sx={{ color: "#14213d", mr: 1, fontSize: 20 }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  fontWeight="600"
+                >
                   DATA DE CADASTRO
                 </Typography>
               </Box>
-              <Typography variant="body1" fontWeight="600" sx={{ color: '#14213d' }}>
-                {data.createdAt ? new Date(data.createdAt).toLocaleDateString('pt-BR', {
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric'
-                }) : "—"}
+              <Typography
+                variant="body1"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
+                {formatarDataCriacao(data.createdAt)}
               </Typography>
             </Paper>
           </Grid>
 
           {/* Seção: Motivo */}
           <Grid size={{ xs: 12 }}>
-            <Box display="flex" alignItems="center" mb={2} mt={2}>
-              <Warning sx={{ color: '#fca311', mr: 1.5, fontSize: 28 }} />
-              <Typography variant="h6" fontWeight="600" sx={{ color: '#14213d' }}>
+            <Box display="flex" alignItems="center" mb={1} mt={1}>
+              <Warning sx={{ color: "#fca311", mr: 1.5, fontSize: 28 }} />
+              <Typography
+                variant="h6"
+                fontWeight="600"
+                sx={{ color: "#14213d" }}
+              >
                 Motivo do Monitoramento
               </Typography>
             </Box>
-            <Divider sx={{ mb: 3, borderColor: alpha('#fca311', 0.2) }} />
+            <Divider sx={{ mb: 1, borderColor: alpha("#fca311", 0.2) }} />
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <Paper 
+            <Paper
               elevation={0}
-              sx={{ 
-                p: 3, 
-                backgroundColor: alpha('#fef3e2', 0.5),
+              sx={{
+                p: 3,
+                backgroundColor: alpha("#fef3e2", 0.5),
                 borderRadius: 2,
-                border: `2px solid ${alpha('#fca311', 0.2)}`
+                border: `2px solid ${alpha("#fca311", 0.2)}`,
               }}
             >
-              <Typography variant="body1" sx={{ color: '#14213d', lineHeight: 1.7 }}>
+              <Typography
+                variant="body1"
+                sx={{ color: "#14213d", lineHeight: 1.7 }}
+              >
                 {data.motivo || "—"}
               </Typography>
             </Paper>
@@ -322,35 +369,35 @@ export default function PreviewDialog({ open, onClose, data }: PreviewDialogProp
         </Grid>
       </DialogContent>
 
-      <DialogActions 
-        sx={{ 
-          p: 3, 
-          backgroundColor: 'white',
-          borderTop: '1px solid',
-          borderColor: alpha('#14213d', 0.1)
+      <DialogActions
+        sx={{
+          p: 3,
+          backgroundColor: "white",
+          borderTop: "1px solid",
+          borderColor: alpha("#14213d", 0.1),
         }}
       >
-        <Button 
-          onClick={onClose} 
+        <Button
+          onClick={onClose}
           variant="contained"
           sx={{
-            backgroundColor: '#fca311',
-            color: 'white',
+            backgroundColor: "#fca311",
+            color: "white",
             fontWeight: 600,
             px: 5,
             py: 1.5,
-            boxShadow: '0 4px 14px rgba(252, 163, 17, 0.4)',
-            '&:hover': {
-              backgroundColor: '#e89200',
-              boxShadow: '0 6px 20px rgba(252, 163, 17, 0.5)',
-              transform: 'translateY(-1px)'
+            boxShadow: "0 4px 14px rgba(252, 163, 17, 0.4)",
+            "&:hover": {
+              backgroundColor: "#e89200",
+              boxShadow: "0 6px 20px rgba(252, 163, 17, 0.5)",
+              transform: "translateY(-1px)",
             },
-            transition: 'all 0.3s ease'
+            transition: "all 0.3s ease",
           }}
         >
           Fechar
         </Button>
       </DialogActions>
-    </Dialog>    
+    </Dialog>
   );
 }

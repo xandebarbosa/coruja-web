@@ -30,6 +30,8 @@ const CONCESSIONARIA_META: Record<
   entrevias: { label: "Entrevias", color: "#22c55e", abbr: "ET" },
   rondon: { label: "Rondon", color: "#ef4444", abbr: "RN" },
   monitorasp: { label: "MonitoraSP", color: "#ffea00", abbr: "MSP" },
+  spvias: { label: "SPVias", color: "#b0c4b1", abbr: "SPV" },
+  pantanal: { label: "Pantanal", color: "#6247aa", abbr: "PANT" },
 };
 
 const DEFAULT_META = { label: "Outro", color: "#6b7280", abbr: "OT" };
@@ -81,19 +83,19 @@ function ConcessionariaFilterChip({
       <button
         onClick={() => onToggle(concKey)}
         style={{
-          display: "flex",
+          display: "inline-flex", // 🔹 Flex inline para não ocupar a largura toda
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 14px",
-          borderRadius: "10px",
+          gap: 12, // 🔹 Separação entre a label e o contador
+          padding: "6px 14px", // 🔹 Ligeiramente mais compacto
+          borderRadius: "30px", // 🔹 Estilo pílula moderno
           cursor: "pointer",
           border: active
             ? `1.5px solid ${color}`
             : "1.5px solid rgba(255,255,255,0.12)",
           background: active ? `${color}28` : "rgba(255,255,255,0.04)",
           transition: "all 0.2s ease",
-          width: "100%",
-          minWidth: 0,
+          whiteSpace: "nowrap", // 🔹 Evita quebra de linha dentro do botão
+          flexShrink: 0, // 🔹 Evita que o botão esmague em telas pequenas
         }}
       >
         <div
@@ -101,8 +103,8 @@ function ConcessionariaFilterChip({
         >
           <span
             style={{
-              width: 10,
-              height: 10,
+              width: 8,
+              height: 8,
               borderRadius: "50%",
               background: active ? color : `${color}55`,
               flexShrink: 0,
@@ -134,6 +136,9 @@ function ConcessionariaFilterChip({
               fontSize: 11,
               color: active ? `${color}bb` : "rgba(255,255,255,0.2)",
               fontFamily: "monospace",
+              background: "rgba(0,0,0,0.15)", // 🔹 Fundo discreto para o número
+              padding: "2px 6px",
+              borderRadius: "10px",
             }}
           >
             {count}
@@ -495,17 +500,20 @@ export default function MapaRadaresPage() {
 
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: `repeat(${Math.min(concessionariasDisponiveis.length, 5)}, minmax(100px, 1fr))`,
-                    gap: 8,
+                    display: "flex", // 🔹 Força a linha horizontal
+                    alignItems: "center",
+                    gap: 8, // 🔹 Espaço entre os chips
                     flex: 1,
+                    overflowX: "auto", // 🔹 Adiciona scroll horizontal se faltar espaço (Mobile)
+                    paddingBottom: 4, // 🔹 Margem para a barra de scroll não sobrepor
+                    scrollbarWidth: "none", // Esconde a scrollbar no Firefox
                   }}
                 >
-                  {concessionariasDisponiveis.map((key) => {
+                  {concessionariasDisponiveis.map((key, idx) => {
                     const meta = getMeta(key);
                     return (
                       <ConcessionariaFilterChip
-                        key={key}
+                        key={`filtro-${key}-${idx}`}
                         concKey={key}
                         label={meta.label}
                         color={meta.color}
@@ -523,14 +531,18 @@ export default function MapaRadaresPage() {
       )}
 
       {/* ── MAPA ─────────────────────────────────────────────────────────── */}
-      <div className="relative z-0 min-h-[400px] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <RadarMapDinâmico
-          // 💡 Passamos os radares já filtrados pela Rodovia (se existir)
-          points={radaresParaMapa}
-          activeFilters={filtrosAtivos}
-          selectedPoint={selectedPoint}
-          onSelectPoint={setSelectedPoint}
-        />
+      {/* 1. O pai mantém o flex-1 para ocupar o espaço vazio, e adicionamos "relative" */}
+      <div className="relative z-0 w-full flex-1 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+        {/* 2. Esta div mágica "absolute inset-0" força o mapa a colar nas 4 bordas do pai, 
+               garantindo que ocupa 100% dos pixeis, nem mais, nem menos! */}
+        <div className="absolute inset-0">
+          <RadarMapDinâmico
+            points={radaresParaMapa}
+            activeFilters={filtrosAtivos}
+            selectedPoint={selectedPoint}
+            onSelectPoint={setSelectedPoint}
+          />
+        </div>
       </div>
     </div>
   );

@@ -13,10 +13,15 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   LinearProgress,
   Typography,
-} from '@mui/material';
+} from "@mui/material";
 import {
   DataGrid,
   GridActionsCellItem,
@@ -60,11 +65,15 @@ const safeDateFormatter = (value: any): string => {
    Page Component
 ───────────────────────────────────────────────────────── */
 export default function TelegramUsersPage() {
-  const [users, setUsers]         = useState<UsuarioTelegram[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [syncing, setSyncing]     = useState(false);
-  const [searchTerm, setSearch]   = useState('');
-  const [visibleIds, setVisible]  = useState<Set<string | number>>(new Set());
+  const [users, setUsers] = useState<UsuarioTelegram[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [searchTerm, setSearch] = useState("");
+  const [visibleIds, setVisible] = useState<Set<string | number>>(new Set());
+
+  //Estados para o Dialog de deleção
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<GridRowId | null>(null);
 
   /* ── Fetch ── */
   const fetchUsers = async () => {
@@ -73,28 +82,41 @@ export default function TelegramUsersPage() {
       const data = await TelegramService.getAll();
       setUsers(data);
     } catch {
-      toast.error('Erro ao carregar usuários.');
+      toast.error("Erro ao carregar usuários.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   /* ── Sync ── */
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const updated = await TelegramService.sync();
-      setUsers(updated);
-      const diff = updated.length - users.length;
-      toast.success(
-        diff > 0
-          ? `${diff} novo(s) usuário(s) encontrado(s)!`
-          : 'Base já está atualizada.',
-      );
+      // Guarda a quantidade atual para calcularmos a diferença depois, se desejar
+      const countAntes = users.length;
+
+      // Dispara a sincronização no backend (não precisamos salvar o retorno no estado
+      await TelegramService.sync();
+
+      //Recarrega os dados com a função que jã preenche a tabela corretamente
+      await fetchUsers();
+
+      toast.success("Sincronização concluída com sucesso!");
+
+      //const updated = await TelegramService.sync();
+      //setUsers(updated);
+      //const diff = updated.length - users.length;
+      //toast.success(
+      //  diff > 0
+      //    ? `${diff} novo(s) usuário(s) encontrado(s)!`
+      //    : "Base já está atualizada.",
+      //);
     } catch {
-      toast.error('Erro ao sincronizar com o Telegram.');
+      toast.error("Erro ao sincronizar com o Telegram.");
     } finally {
       setSyncing(false);
     }
@@ -102,7 +124,7 @@ export default function TelegramUsersPage() {
 
   /* ── Toggle ID visibility ── */
   const toggleId = (id: string | number) =>
-    setVisible(prev => {
+    setVisible((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -111,40 +133,62 @@ export default function TelegramUsersPage() {
   /* ── Filtered rows ── */
   const filteredRows = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return users.filter(u =>
-      `${u.primeiroNome ?? ''} ${u.sobrenome ?? ''}`.toLowerCase().includes(term) ||
-      (u.username ?? '').toLowerCase().includes(term) ||
-      String(u.telegramId ?? '').includes(term),
+    return users.filter(
+      (u) =>
+        `${u.primeiroNome ?? ""} ${u.sobrenome ?? ""}`
+          .toLowerCase()
+          .includes(term) ||
+        (u.username ?? "").toLowerCase().includes(term) ||
+        String(u.telegramId ?? "").includes(term),
     );
   }, [users, searchTerm]);
 
   /* ── Stats ── */
   const stats = useMemo(() => {
-    const total  = users.length;
-    const ativos = users.filter(u => getActivityStatus(u.ultimoAcesso) === 'active').length;
+    const total = users.length;
+    const ativos = users.filter(
+      (u) => getActivityStatus(u.ultimoAcesso) === "active",
+    ).length;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
-    const novos  = users.filter(u => {
+    const novos = users.filter((u) => {
       if (!u.dataCadastro) return false;
       const d = Array.isArray(u.dataCadastro)
-        ? new Date(u.dataCadastro[0], (u.dataCadastro as any)[1] - 1, (u.dataCadastro as any)[2])
+        ? new Date(
+            u.dataCadastro[0],
+            (u.dataCadastro as any)[1] - 1,
+            (u.dataCadastro as any)[2],
+          )
         : new Date(u.dataCadastro);
       return d >= cutoff;
     }).length;
     return { total, ativos, novos };
   }, [users]);
 
-  const handleDeleteClick = (id: GridRowId) => async () => {
-    if (window.confirm("Tem certeza que deseja remover este usuário?//")) {
-      try {
-        await deleteUserTelegram(Number(id));
-        toast.success("Usuário removido do Telegram.");
-        fetchUsers();
-      } catch (error) {
-        toast.error("Erro ao remover a usuário.");
-        console.error("Erro ao deletar usuário:", error);
-      }
+  const handleDeleteClick = (id: GridRowId) => () => {
+    setUserToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (userToDelete === null) return;
+
+    try {
+      await deleteUserTelegram(Number(userToDelete));
+      toast.success("Usuário removido do Telegram.");
+      fetchUsers();
+    } catch (error) {
+      toast.error("Erro ao remover o usuário.");
+      console.error("Erro ao deletar usuário:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setUserToDelete(null);
   };
 
   /* ─────────────────── Colunas DataGrid ─────────────────── */
@@ -326,12 +370,12 @@ export default function TelegramUsersPage() {
       headerName: "Ações",
       width: 80,
       headerAlign: "center",
-      getActions: (params: { id: GridRowId; row: "" }) => [
+      getActions: (params) => [
         <GridActionsCellItem
           key={`delete-${params.id}`}
           icon={<Delete sx={{ color: "#dc3545" }} />}
           label="Deletar"
-          onClick={handleDeleteClick(params.id)}
+          onClick={handleDeleteClick(params.row.telegramId)}
           showInMenu={false}
         />,
       ],
@@ -343,50 +387,66 @@ export default function TelegramUsersPage() {
   ───────────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-[#fef9f3] to-gray-50 p-6">
-
       {/* ── HERO HEADER ─────────────────────────────────────── */}
       <Card
         className="mb-6 overflow-hidden"
         sx={{
-          background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)',
-          boxShadow: '0 20px 60px rgba(20,33,61,0.3)',
-          borderRadius: '16px',
-          position: 'relative',
-          '&::before': {
-            content: '""', position: 'absolute',
-            top: 0, left: 0, right: 0, height: '4px',
-            background: 'linear-gradient(90deg, #fca311 0%, #ff8800 100%)',
+          background: "linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)",
+          boxShadow: "0 20px 60px rgba(20,33,61,0.3)",
+          borderRadius: "16px",
+          position: "relative",
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "4px",
+            background: "linear-gradient(90deg, #fca311 0%, #ff8800 100%)",
           },
         }}
       >
-        <CardContent className="py-10 px-8">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-
+        <CardContent className="px-8 py-10">
+          <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
             {/* Título */}
             <div className="flex items-center gap-5">
-              <Box sx={{
-                background: 'rgba(252,163,17,0.15)',
-                backdropFilter: 'blur(10px)',
-                border: '1px solid rgba(252,163,17,0.3)',
-                borderRadius: '16px',
-                p: 2.5,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 8px 32px rgba(252,163,17,0.2)',
-              }}>
+              <Box
+                sx={{
+                  background: "rgba(252,163,17,0.15)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(252,163,17,0.3)",
+                  borderRadius: "16px",
+                  p: 2.5,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 8px 32px rgba(252,163,17,0.2)",
+                }}
+              >
                 {/* Telegram icon via SVG inline */}
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="#fca311">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.7 8.02c-.13.59-.47.73-.95.46l-2.62-1.93-1.27 1.22c-.14.14-.26.26-.53.26l.19-2.69 4.87-4.4c.21-.19-.05-.29-.33-.1L7.4 14.77l-2.57-.8c-.56-.17-.57-.56.12-.83l10.03-3.87c.47-.17.88.11.66.83z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.7 8.02c-.13.59-.47.73-.95.46l-2.62-1.93-1.27 1.22c-.14.14-.26.26-.53.26l.19-2.69 4.87-4.4c.21-.19-.05-.29-.33-.1L7.4 14.77l-2.57-.8c-.56-.17-.57-.56.12-.83l10.03-3.87c.47-.17.88.11.66.83z" />
                 </svg>
               </Box>
               <div>
                 <Typography
                   variant="h3"
-                  className="font-bold text-white mb-2"
-                  sx={{ letterSpacing: '-0.5px', textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}
+                  className="mb-2 font-bold text-white"
+                  sx={{
+                    letterSpacing: "-0.5px",
+                    textShadow: "0 2px 10px rgba(0,0,0,0.2)",
+                  }}
                 >
                   Usuários Telegram
                 </Typography>
-                <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.8)', fontSize: '15px', fontWeight: 500 }}>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: "rgba(255,255,255,0.8)",
+                    fontSize: "15px",
+                    fontWeight: 500,
+                  }}
+                >
                   Gerencie e monitore os usuários cadastrados no bot.
                 </Typography>
               </div>
@@ -398,73 +458,192 @@ export default function TelegramUsersPage() {
               size="large"
               onClick={handleSync}
               disabled={loading || syncing}
-              startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <CloudDownload />}
+              startIcon={
+                syncing ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <CloudDownload />
+                )
+              }
               sx={{
-                minWidth: '200px', height: '52px',
-                background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)',
-                color: '#14213d', fontWeight: 700, fontSize: '15px',
-                textTransform: 'none', borderRadius: '12px',
-                boxShadow: '0 4px 14px rgba(252,163,17,0.4)',
-                '&:hover': { background: 'linear-gradient(135deg, #ff8800 0%, #fca311 100%)', transform: 'translateY(-1px)', boxShadow: '0 6px 20px rgba(252,163,17,0.5)' },
-                '&:disabled': { bgcolor: '#e5e7eb', color: '#9ca3af' },
-                transition: 'all 0.3s ease',
+                minWidth: "200px",
+                height: "52px",
+                background: "linear-gradient(135deg, #fca311 0%, #ff8800 100%)",
+                color: "#14213d",
+                fontWeight: 700,
+                fontSize: "15px",
+                textTransform: "none",
+                borderRadius: "12px",
+                boxShadow: "0 4px 14px rgba(252,163,17,0.4)",
+                "&:hover": {
+                  background:
+                    "linear-gradient(135deg, #ff8800 0%, #fca311 100%)",
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 6px 20px rgba(252,163,17,0.5)",
+                },
+                "&:disabled": { bgcolor: "#e5e7eb", color: "#9ca3af" },
+                transition: "all 0.3s ease",
               }}
             >
-              {syncing ? 'Sincronizando...' : 'Sincronizar Telegram'}
+              {syncing ? "Sincronizando..." : "Sincronizar Telegram"}
             </Button>
           </div>
         </CardContent>
       </Card>
 
       {/* ── CARDS DE ESTATÍSTICAS ────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* Total */}
-        <Card sx={{ borderRadius: '14px', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-          <Box sx={{ background: 'linear-gradient(135deg, #fca311 0%, #ff8800 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ bgcolor: 'rgba(255,255,255,0.2)', p: 1.5, borderRadius: '12px', display: 'flex' }}>
+        <Card
+          sx={{
+            borderRadius: "14px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              background: "linear-gradient(135deg, #fca311 0%, #ff8800 100%)",
+              px: 3,
+              py: 2.5,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                bgcolor: "rgba(255,255,255,0.2)",
+                p: 1.5,
+                borderRadius: "12px",
+                display: "flex",
+              }}
+            >
               <Users size={28} color="white" />
             </Box>
             <div>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.85)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  fontSize: 11,
+                }}
+              >
                 Total de Usuários
               </Typography>
-              <Typography variant="h4" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>
-                {loading ? '—' : stats.total}
+              <Typography
+                variant="h4"
+                sx={{ color: "white", fontWeight: 800, lineHeight: 1.2 }}
+              >
+                {loading ? "—" : stats.total}
               </Typography>
             </div>
           </Box>
         </Card>
 
         {/* Ativos */}
-        <Card sx={{ borderRadius: '14px', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-          <Box sx={{ background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ bgcolor: alpha('#fca311', 0.2), p: 1.5, borderRadius: '12px', display: 'flex' }}>
+        <Card
+          sx={{
+            borderRadius: "14px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              background: "linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)",
+              px: 3,
+              py: 2.5,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                bgcolor: alpha("#fca311", 0.2),
+                p: 1.5,
+                borderRadius: "12px",
+                display: "flex",
+              }}
+            >
               <UserCheck size={28} color="#fca311" />
             </Box>
             <div>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  fontSize: 11,
+                }}
+              >
                 Ativos (7 dias)
               </Typography>
-              <Typography variant="h4" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>
-                {loading ? '—' : stats.ativos}
+              <Typography
+                variant="h4"
+                sx={{ color: "white", fontWeight: 800, lineHeight: 1.2 }}
+              >
+                {loading ? "—" : stats.ativos}
               </Typography>
             </div>
           </Box>
         </Card>
 
         {/* Novos */}
-        <Card sx={{ borderRadius: '14px', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-          <Box sx={{ background: 'linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ bgcolor: alpha('#059669', 0.2), p: 1.5, borderRadius: '12px', display: 'flex' }}>
+        <Card
+          sx={{
+            borderRadius: "14px",
+            border: "1px solid rgba(0,0,0,0.06)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              background: "linear-gradient(135deg, #14213d 0%, #1a2b4a 100%)",
+              px: 3,
+              py: 2.5,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                bgcolor: alpha("#059669", 0.2),
+                p: 1.5,
+                borderRadius: "12px",
+                display: "flex",
+              }}
+            >
               <UserPlus size={28} color="#34d399" />
             </Box>
             <div>
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', fontSize: 11 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "rgba(255,255,255,0.7)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  fontSize: 11,
+                }}
+              >
                 Novos (30 dias)
               </Typography>
-              <Typography variant="h4" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>
-                {loading ? '—' : stats.novos}
+              <Typography
+                variant="h4"
+                sx={{ color: "white", fontWeight: 800, lineHeight: 1.2 }}
+              >
+                {loading ? "—" : stats.novos}
               </Typography>
             </div>
           </Box>
@@ -474,94 +653,186 @@ export default function TelegramUsersPage() {
       {/* ── TABELA DE USUÁRIOS ──────────────────────────────── */}
       <Card
         className="overflow-hidden"
-        sx={{ boxShadow: '0 10px 40px rgba(0,0,0,0.08)', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.06)' }}
+        sx={{
+          boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+          borderRadius: "16px",
+          border: "1px solid rgba(0,0,0,0.06)",
+        }}
       >
         {/* Sub-header escuro */}
-        <Box sx={{ background: 'linear-gradient(135deg, #1a2b4a 0%, #14213d 100%)', px: 4, py: 2.5 }}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-
+        <Box
+          sx={{
+            background: "linear-gradient(135deg, #1a2b4a 0%, #14213d 100%)",
+            px: 4,
+            py: 2.5,
+          }}
+        >
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             {/* Título + contador */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Box sx={{ bgcolor: alpha('#fca311', 0.2), borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                sx={{
+                  bgcolor: alpha("#fca311", 0.2),
+                  borderRadius: "50%",
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <Users size={14} color="#fca311" />
               </Box>
-              <Typography variant="subtitle1" sx={{ color: 'white', fontWeight: 600 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{ color: "white", fontWeight: 600 }}
+              >
                 Lista de Usuários
               </Typography>
               {!loading && (
                 <Chip
-                  label={`${filteredRows.length} usuário${filteredRows.length !== 1 ? 's' : ''}`}
+                  label={`${filteredRows.length} usuário${filteredRows.length !== 1 ? "s" : ""}`}
                   size="small"
-                  sx={{ bgcolor: alpha('#fca311', 0.2), color: '#fca311', border: `1px solid ${alpha('#fca311', 0.4)}`, fontWeight: 600 }}
+                  sx={{
+                    bgcolor: alpha("#fca311", 0.2),
+                    color: "#fca311",
+                    border: `1px solid ${alpha("#fca311", 0.4)}`,
+                    fontWeight: 600,
+                  }}
                 />
               )}
             </Box>
 
             {/* Busca inline */}
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 1.5,
-              bgcolor: 'rgba(255,255,255,0.08)', borderRadius: '10px',
-              px: 2, py: 1, border: '1px solid rgba(255,255,255,0.15)',
-              '&:focus-within': { border: `1px solid ${alpha('#fca311', 0.6)}`, bgcolor: 'rgba(255,255,255,0.12)' },
-              transition: 'all 0.2s',
-              width: { xs: '100%', sm: '280px' },
-            }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                bgcolor: "rgba(255,255,255,0.08)",
+                borderRadius: "10px",
+                px: 2,
+                py: 1,
+                border: "1px solid rgba(255,255,255,0.15)",
+                "&:focus-within": {
+                  border: `1px solid ${alpha("#fca311", 0.6)}`,
+                  bgcolor: "rgba(255,255,255,0.12)",
+                },
+                transition: "all 0.2s",
+                width: { xs: "100%", sm: "280px" },
+              }}
+            >
               <Search size={16} color="rgba(255,255,255,0.5)" />
               <input
                 value={searchTerm}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por nome, username ou ID…"
                 style={{
-                  background: 'none', border: 'none', outline: 'none',
-                  color: 'white', fontSize: 14, width: '100%',
+                  background: "none",
+                  border: "none",
+                  outline: "none",
+                  color: "white",
+                  fontSize: 14,
+                  width: "100%",
                 }}
               />
             </Box>
           </div>
 
           {(loading || syncing) && (
-            <LinearProgress sx={{ mt: 2, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.1)', '& .MuiLinearProgress-bar': { bgcolor: '#fca311' } }} />
+            <LinearProgress
+              sx={{
+                mt: 2,
+                borderRadius: 1,
+                bgcolor: "rgba(255,255,255,0.1)",
+                "& .MuiLinearProgress-bar": { bgcolor: "#fca311" },
+              }}
+            />
           )}
         </Box>
 
         {/* DataGrid */}
         <CardContent className="p-0">
-          <Box sx={{ height: 560, width: '100%' }}>
+          <Box sx={{ height: 560, width: "100%" }}>
             <DataGrid
               rows={filteredRows}
               columns={columns}
-              getRowId={row => row.id ?? row.telegramId}
-              loading={loading}
+              getRowId={(row) => row.id ?? row.telegramId}
+              loading={loading || syncing}
               disableRowSelectionOnClick
               pageSizeOptions={[10, 25, 50, 100]}
-              initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 25 } },
+              }}
               sx={{
-                border: 'none',
-                '& .MuiDataGrid-cell:focus': { outline: 'none' },
-                '& .MuiDataGrid-columnHeaders': { bgcolor: '#f8f9fa', borderBottom: '2px solid #e9ecef', minHeight: '52px !important', maxHeight: '52px !important' },
-                '& .MuiDataGrid-columnHeader': { outline: 'none !important' },
-                '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 700, fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px' },
-                '& .MuiDataGrid-columnSeparator': { color: '#e5e7eb' },
-                '& .MuiDataGrid-row': {
-                  '&:hover': { bgcolor: '#fef3e2' },
-                  '&.Mui-selected': { bgcolor: `${alpha('#fca311', 0.08)} !important`, '&:hover': { bgcolor: `${alpha('#fca311', 0.12)} !important` } },
+                border: "none",
+                "& .MuiDataGrid-cell:focus": { outline: "none" },
+                "& .MuiDataGrid-columnHeaders": {
+                  bgcolor: "#f8f9fa",
+                  borderBottom: "2px solid #e9ecef",
+                  minHeight: "52px !important",
+                  maxHeight: "52px !important",
                 },
-                '& .MuiDataGrid-cell': { borderBottom: '1px solid #f3f4f6', fontSize: 13 },
-                '& .MuiDataGrid-footerContainer': { borderTop: '2px solid #e9ecef', bgcolor: '#f9fafb' },
-                '& .MuiDataGrid-virtualScroller': { bgcolor: 'white' },
-                '& .MuiCheckbox-root.Mui-checked': { color: '#fca311' },
+                "& .MuiDataGrid-columnHeader": { outline: "none !important" },
+                "& .MuiDataGrid-columnHeaderTitle": {
+                  fontWeight: 700,
+                  fontSize: 12,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.4px",
+                },
+                "& .MuiDataGrid-columnSeparator": { color: "#e5e7eb" },
+                "& .MuiDataGrid-row": {
+                  "&:hover": { bgcolor: "#fef3e2" },
+                  "&.Mui-selected": {
+                    bgcolor: `${alpha("#fca311", 0.08)} !important`,
+                    "&:hover": {
+                      bgcolor: `${alpha("#fca311", 0.12)} !important`,
+                    },
+                  },
+                },
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid #f3f4f6",
+                  fontSize: 13,
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "2px solid #e9ecef",
+                  bgcolor: "#f9fafb",
+                },
+                "& .MuiDataGrid-virtualScroller": { bgcolor: "white" },
+                "& .MuiCheckbox-root.Mui-checked": { color: "#fca311" },
               }}
               slots={{
                 noRowsOverlay: () => (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 2, color: '#9ca3af' }}>
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.3 }}>
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.7 8.02c-.13.59-.47.73-.95.46l-2.62-1.93-1.27 1.22c-.14.14-.26.26-.53.26l.19-2.69 4.87-4.4c.21-.19-.05-.29-.33-.1L7.4 14.77l-2.57-.8c-.56-.17-.57-.56.12-.83l10.03-3.87c.47-.17.88.11.66.83z"/>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      gap: 2,
+                      color: "#9ca3af",
+                    }}
+                  >
+                    <svg
+                      width="56"
+                      height="56"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style={{ opacity: 0.3 }}
+                    >
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8-1.7 8.02c-.13.59-.47.73-.95.46l-2.62-1.93-1.27 1.22c-.14.14-.26.26-.53.26l.19-2.69 4.87-4.4c.21-.19-.05-.29-.33-.1L7.4 14.77l-2.57-.8c-.56-.17-.57-.56.12-.83l10.03-3.87c.47-.17.88.11.66.83z" />
                     </svg>
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {searchTerm ? 'Nenhum usuário corresponde à busca.' : 'Nenhum usuário encontrado.'}
+                      {searchTerm
+                        ? "Nenhum usuário corresponde à busca."
+                        : "Nenhum usuário encontrado."}
                     </Typography>
                     {searchTerm && (
-                      <Typography variant="caption">Tente um nome, username ou ID diferente.</Typography>
+                      <Typography variant="caption">
+                        Tente um nome, username ou ID diferente.
+                      </Typography>
                     )}
                   </Box>
                 ),
@@ -570,6 +841,53 @@ export default function TelegramUsersPage() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* ── MODAL DE CONFIRMAÇÃO DE DELEÇÃO ─────────────────── */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={cancelDelete}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+        sx={{ borderRadius: "12px", padding: "8px" }}
+      >
+        <DialogTitle
+          id="alert-dialog-title"
+          sx={{ fontWeight: "bold", color: "#14213d" }}
+        >
+          Confirmar Exclusão
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText
+            id="alert-dialog-description"
+            sx={{ color: "#4b5563" }}
+          >
+            Tem certeza que deseja remover este usuário? Essa ação removerá o
+            acesso dele e não poderá ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ padding: "16px" }}>
+          <Button
+            onClick={cancelDelete}
+            sx={{ color: "#6b7280", fontWeight: "600", textTransform: "none" }}
+          >
+            {" "}
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            variant="contained"
+            autoFocus
+            sx={{
+              bgcolor: "#dc3545",
+              fontWeight: 600,
+              textTransform: "none",
+              "&:hover": { bgcolor: "#c82333" },
+            }}
+          >
+            Remover Usuário
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }

@@ -42,6 +42,8 @@ interface FilterState {
   concessionaria: string;
   rodovia: string; // Nome da rodovia (para enviar ao back)
   rodoviaId: number | ""; // ID da rodovia (para buscar KMs)
+  praca?: string;
+  pracaId?: number | "";
   km: string;
   sentido: string;
   data: string;
@@ -59,6 +61,8 @@ const INITIAL_FILTERS: FilterState = {
   concessionaria: "",
   rodovia: "",
   rodoviaId: "",
+  praca: "",
+  pracaId: "",
   km: "",
   sentido: "",
   data: new Date().toISOString().split("T")[0], // Data de hoje como padrão
@@ -248,7 +252,7 @@ export default function ConsultaLocal() {
     // Tratamento especial para rodovia (mantém ID e nome)
     if (name === "rodoviaId") {
       const selectedRodovia = options.rodovias.find(
-        (r) => r.id === Number(value),
+        (r) => r.id === Number(value) || r.nome === value,
       );
       setFilters((prev) => ({
         ...prev,
@@ -284,6 +288,7 @@ export default function ConsultaLocal() {
           horaFinal: filtersToUse.horaFinal || undefined,
           concessionarias: filtersToUse.concessionaria || undefined,
           rodovia: filtersToUse.rodovia || undefined,
+          praca: filtersToUse.praca || undefined,
           km: filtersToUse.km || undefined,
           sentido: filtersToUse.sentido || undefined,
           // O campo 'rodovia' agora leva o nome da Rodovia ou da Praça
@@ -497,6 +502,8 @@ export default function ConsultaLocal() {
                 <MenuItem value="rondon">Rondon</MenuItem>
                 <MenuItem value="entrevias">Entrevias</MenuItem>
                 <MenuItem value="monitorasp">MonitoraSP</MenuItem>
+                <MenuItem value="spvias">SPVias</MenuItem>
+                <MenuItem value="pantanal">Pantanal</MenuItem>
               </Select>
             </FormControl>
 
@@ -522,11 +529,17 @@ export default function ConsultaLocal() {
                 <MenuItem value="">
                   <em>Todas</em>
                 </MenuItem>
-                {options.rodovias.map((r) => (
-                  <MenuItem key={r.id} value={r.id}>
-                    {r.nome}
-                  </MenuItem>
-                ))}
+                {options.rodovias.map((r, idx) => {
+                  // 🔹 Proteção: Se não houver ID, usa o nome ou o índice
+                  const safeValue = r.id ? String(r.id) : r.nome;
+                  const safeKey = r.id ? `rod-${r.id}` : `idx-${idx}`;
+
+                  return (
+                    <MenuItem key={safeKey} value={safeValue}>
+                      {r.nome}
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
 

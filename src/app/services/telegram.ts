@@ -44,7 +44,7 @@ export const TelegramService = {
       await api.delete(`${BASE_URL}/${id}`);
       console.log('✅ Usuário Telegram deletado');      
     } catch (error: any) {
-      console.error('❌ Erro ao deletar placa:', error.message);
+      console.error("❌ Erro ao deletar Usuário do Telegram:", error.message);
       throw error;
     }
   }

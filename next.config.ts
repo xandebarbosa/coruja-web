@@ -55,7 +55,11 @@ const nextConfig: NextConfig = {
   },
 
   experimental: {
-    // Adicione aqui quaisquer recursos experimentais que deseja usar
+    optimizePackageImports: [
+      "@mui/material",
+      "@mui/icons-material",
+      "lucide-react",
+    ],
   },
 };
 

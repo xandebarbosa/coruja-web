@@ -82,6 +82,22 @@ export const CONCESSIONARIA_CONFIG: Record<string, ConcessionariaConfig> = {
     abbr: "MS",
     logo: "/image/monitora-logo.png",
   },
+  spvias: {
+    color: "#b0c4b1",
+    colorDim: "#4a5759",
+    glow: "#344e41",
+    label: "SPVias",
+    abbr: "SPV",
+    logo: "/image/spvias-logo.png",
+  },
+  pantanal: {
+    color: "#6247aa",
+    colorDim: "#dec9e9",
+    glow: "#a06cd5",
+    label: "Pantanal",
+    abbr: "PANT",
+    logo: "/image/pantanal-logo.png",
+  },
 };
 
 const DEFAULT_CONFIG: ConcessionariaConfig = {
@@ -341,7 +357,7 @@ export default function RadarMapComponent({
     <div className="radar-map-wrapper">
       <MapContainer
         center={[-22.5, -49.5]}
-        zoom={8}
+        zoom={13}
         style={{ height: "100%", width: "100%", zIndex: 0 }}
         zoomControl={false}
       >
@@ -363,7 +379,7 @@ export default function RadarMapComponent({
 
           return (
             <Marker
-              key={`${point.id ?? idx}-${point.concessionaria}-${isSelected}`}
+              key={`marker-${point.id ?? "nulo"}-${point.concessionaria}-${idx}`}
               position={[point.latitude!, point.longitude!]}
               icon={icon}
               zIndexOffset={isSelected ? 2000 : 0}
@@ -531,6 +547,7 @@ function MapHUD({
 }) {
   return (
     <>
+      {/* Contador Total (Topo Esquerdo) */}
       <div
         style={{
           position: "absolute",
@@ -576,23 +593,33 @@ function MapHUD({
           {count.toLocaleString("pt-BR")}
         </span>
       </div>
+
+      {/* Resumo de Concessionárias (Base Centralizada - Linha Única) */}
       {stats.size > 0 && (
         <div
           style={{
             position: "absolute",
             bottom: 24,
-            right: 14,
+            left: "50%", // 🔹 Centraliza na tela
+            transform: "translateX(-50%)", // 🔹 Ajuste fino da centralização
             zIndex: 1000,
             background: TOKENS.bgCard,
             border: `1px solid ${TOKENS.border}`,
-            borderRadius: TOKENS.radius,
-            padding: "10px 14px",
+            borderRadius: "30px", // 🔹 Arredondamento estilo barra de navegação
+            padding: "6px 12px", // 🔹 Reduzido para ficar fino e elegante
             boxShadow: TOKENS.shadowSm,
             backdropFilter: "blur(12px)",
             fontFamily: TOKENS.fontSans,
-            minWidth: 150,
+            display: "flex", // 🔹 Muda para Flex horizontal
+            alignItems: "center",
+            gap: 12,
+            width: "max-content", // 🔹 Adapta ao tamanho interno
+            maxWidth: "95vw", // 🔹 Não vaza em telas de telemóvel
+            overflowX: "auto", // 🔹 Permite scroll horizontal no telemóvel
+            whiteSpace: "nowrap", // 🔹 Força TUDO a ficar na mesma linha
           }}
         >
+          {/* Título Inline */}
           <div
             style={{
               fontSize: 9,
@@ -600,27 +627,37 @@ function MapHUD({
               fontWeight: 700,
               letterSpacing: "1px",
               textTransform: "uppercase",
-              marginBottom: 8,
+              paddingRight: 10,
+              borderRight: `1px solid ${TOKENS.border}`, // 🔹 Separador visual
             }}
           >
             Concessionárias
           </div>
-          <div style={{ display: "grid", gap: 5 }}>
-            {Array.from(stats.entries()).map(([key, cnt]) => {
+
+          {/* Itens em Linha */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {Array.from(stats.entries()).map(([key, cnt], idx) => {
               const cfg = getConfig(key);
               return (
                 <div
-                  key={key}
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  key={`stat-chip-${key}-${idx}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "rgba(0,0,0,0.03)", // 🔹 Fundo tipo "Badge/Pílula"
+                    padding: "4px 8px 4px 4px", // 🔹 Mais fechado
+                    borderRadius: "16px",
+                  }}
                 >
                   {cfg.logo ? (
                     <img
                       src={cfg.logo}
                       alt={cfg.label}
                       style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: "3px",
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%", // 🔹 Logo redonda poupa espaço
                         objectFit: "cover",
                         background: "white",
                         border: `1px solid ${cfg.color}33`,
@@ -633,9 +670,9 @@ function MapHUD({
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        width: 14,
-                        height: 14,
-                        borderRadius: 3,
+                        width: 16,
+                        height: 16,
+                        borderRadius: "50%",
                         background: `${cfg.color}22`,
                         border: `1px solid ${cfg.color}55`,
                         fontFamily: TOKENS.fontMono,
@@ -649,16 +686,24 @@ function MapHUD({
                     </span>
                   )}
                   <span
-                    style={{ fontSize: 11, color: TOKENS.textMuted, flex: 1 }}
+                    style={{
+                      fontSize: 11,
+                      color: TOKENS.textMuted,
+                      fontWeight: 500,
+                    }}
                   >
                     {cfg.label}
                   </span>
                   <span
                     style={{
-                      fontSize: 11,
+                      fontSize: 10,
                       color: TOKENS.text,
                       fontFamily: TOKENS.fontMono,
-                      fontWeight: 600,
+                      fontWeight: 700,
+                      background: "white", // 🔹 Mini bloco branco para o número
+                      padding: "1px 6px",
+                      borderRadius: "10px",
+                      border: `1px solid ${TOKENS.border}`,
                     }}
                   >
                     {cnt}
@@ -674,6 +719,8 @@ function MapHUD({
           0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
           50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(34,197,94,0.08); }
         }
+        /* Oculta scrollbar mantendo funcionalidade no Mobile */
+        div::-webkit-scrollbar { display: none; }
       `}</style>
     </>
   );
